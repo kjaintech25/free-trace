@@ -13,6 +13,7 @@ Notes:
 
 ## Run log
 - 2026-09-08 08:26 ET — plan approved by Kush; Batch 0 started.
+- 2026-09-08 10:3x ET — T-05 merged into v1 (PR #7); lane A complete. T-13 pulled forward into the freed slot.
 - 2026-09-08 10:2x ET — T-08 merged into v1 (PR #6).
 - 2026-09-08 10:1x ET — T-06 merged into v1 (PR #4).
 - 2026-09-08 10:0x ET — T-04 merged into v1 (PR #5).
@@ -44,7 +45,15 @@ Board: FTA-005 · Model: Sonnet · Branch: t-04-photo-import · PR: #5 · Attemp
 Checks: build ✅ typecheck ✅ lint ✅ test ✅ (64 tests) preview ✅
 Notes: lib/import.ts (createImageBitmap from-image, 4096px/25MB downscale, 400px thumb), lib/pendingImport.ts hand-off to /convert, components/AddPhotoButton.tsx on /. HEIC + EXIF are iPhone-only evidence.
 
-## Lane A — T-05 library (FTA-006) IN PROGRESS
+## T-05 — Library screen
+State: DONE
+Board: FTA-006 · Model: Sonnet · Branch: t-05-library · PR: #7 · Attempts: 1
+Checks: build ✅ typecheck ✅ lint ✅ test ✅ (75 on branch) preview ✅
+Notes: components/Library.tsx — 2-col grid, sticky "+ Add photo" bar, ⋯ Sheet with Rename/Re-tune/Delete(ConfirmDialog). Object URLs via useMemo + one cleanup effect. Lane A COMPLETE.
+
+## T-13 — Settings screen (pulled forward from the tail; needs only storage + primitives)
+State: IN PROGRESS
+Board: FTA-015 · Model: Sonnet · Branch: t-13-settings · PR: · Attempts: 1
 ## T-06 — Line-art engine
 State: DONE
 Board: FTA-007 · Model: Opus · Branch: t-06-edge-engine · PR: #4 · Attempts: 1
@@ -59,5 +68,5 @@ Checks: build ✅ typecheck ✅ lint ✅ test ✅ (24 new) preview ✅ · harnes
 Notes: lib/camera.ts (ideal→exact fallback, typed failures), components/CameraFeed.tsx (6 states, Start-camera tap, sessionStorage auto-start, stop on unmount/pagehide), app/trace/[id]/page.tsx with <div data-slot="overlay"> at z-10; failure panel + close at z-20. ⚠️ /trace/[id] builds as a DYNAMIC route (ƒ) — T-12's service worker needs a navigation fallback so it works offline.
 
 ## Lane C — T-09 overlay (FTA-010) IN PROGRESS · T-14 harness (FTA-011) · T-10 gestures (FTA-012) · T-11 wake lock (FTA-013) — TODO
-## Tail — T-12 PWA (FTA-014) · T-13 settings (FTA-015) · T-15 review packet (FTA-016) — TODO
+## Tail — T-12 PWA (FTA-014) · T-15 review packet (FTA-016) — TODO
 
