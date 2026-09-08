@@ -5,6 +5,7 @@ import ConvertPage from "@/app/convert/page";
 import type { LineArtSettings, PixelBuffer } from "@/lib/edges";
 import { renderLineArtAsync, terminateLineArtWorker } from "@/lib/edgesClient";
 import { downscaleToMax } from "@/lib/image";
+import { importPhoto } from "@/lib/import";
 import { takePendingImport } from "@/lib/pendingImport";
 import { readPreferences } from "@/lib/preferences";
 import { getReference, saveReference, updateReference } from "@/lib/storage";
@@ -36,6 +37,10 @@ vi.mock("@/lib/image", () => ({
   downscaleToMax: vi.fn(),
 }));
 
+vi.mock("@/lib/import", () => ({
+  importPhoto: vi.fn(),
+}));
+
 vi.mock("@/lib/pendingImport", () => ({
   takePendingImport: vi.fn(),
 }));
@@ -52,6 +57,7 @@ vi.mock("@/lib/storage", () => ({
 
 const renderLineArtAsyncMock = vi.mocked(renderLineArtAsync);
 const downscaleToMaxMock = vi.mocked(downscaleToMax);
+const importPhotoMock = vi.mocked(importPhoto);
 const takePendingImportMock = vi.mocked(takePendingImport);
 const readPreferencesMock = vi.mocked(readPreferences);
 const getReferenceMock = vi.mocked(getReference);
@@ -111,6 +117,7 @@ beforeEach(() => {
   renderLineArtAsyncMock.mockResolvedValue(makeLineArt());
   downscaleToMaxMock.mockReset();
   downscaleToMaxMock.mockResolvedValue(makeSourcePixels());
+  importPhotoMock.mockReset();
   takePendingImportMock.mockReset();
   takePendingImportMock.mockReturnValue(null);
   readPreferencesMock.mockReset();
@@ -391,6 +398,273 @@ describe("ConvertPage — nothing to convert", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Back to library" }));
     expect(push).toHaveBeenCalledWith("/");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// (g) Back (FTA-018).
+// ---------------------------------------------------------------------------
+
+function pickFile(input: HTMLInputElement, file: File | undefined) {
+  Object.defineProperty(input, "files", {
+    value: file ? [file] : [],
+    configurable: true,
+  });
+  fireEvent.change(input);
+}
+
+function makeFile(): File {
+  return new File(["data"], "photo.jpg", { type: "image/jpeg" });
+}
+
+// The photo-picker's onPicked callback chains an extra promise (importPhoto
+// resolving, then downscaleToMax resolving inside it) beyond what settle()'s
+// two ticks drain — same reasoning as trace-chrome.test.tsx's extra-tick
+// settle() for its own deeper effect chain.
+async function settlePhotoPick() {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+describe("ConvertPage — Back on a new import", () => {
+  it("returns to the library and saves nothing", async () => {
+    takePendingImportMock.mockReturnValue({
+      original: makeOriginalBlob(),
+      width: 100,
+      height: 100,
+      thumbnail: makeThumbnailBlob(),
+    });
+
+    render(<ConvertPage />);
+    await settle();
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(push).toHaveBeenCalledWith("/");
+    expect(saveReferenceMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("ConvertPage — Back on a re-tune (?ref=)", () => {
+  it("returns to that trace screen and updates nothing", async () => {
+    currentRef = "ref-123";
+    getReferenceMock.mockResolvedValue({
+      ok: true,
+      value: {
+        id: "ref-123",
+        name: "My reference",
+        originalImage: makeOriginalBlob(),
+        lineArtImage: makeOriginalBlob(),
+        thumbnail: makeThumbnailBlob(),
+        settings: { edgeStrength: 50, threshold: 50, thickness: 1, inverted: false },
+        lastOpacity: 50,
+        createdAt: 1,
+      },
+    });
+
+    render(<ConvertPage />);
+    await settle();
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(push).toHaveBeenCalledWith("/trace/ref-123");
+    expect(updateReferenceMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// (h) "Choose a different photo" (FTA-018).
+// ---------------------------------------------------------------------------
+
+describe('ConvertPage — "Choose a different photo"', () => {
+  it("swaps the source, resets the controls to defaults, and requests a new conversion in place", async () => {
+    takePendingImportMock.mockReturnValue({
+      original: makeOriginalBlob(),
+      width: 100,
+      height: 100,
+      thumbnail: makeThumbnailBlob(),
+    });
+
+    render(<ConvertPage />);
+    await settle();
+    await advanceDebounce();
+    expect(renderLineArtAsyncMock).toHaveBeenCalledTimes(1);
+
+    // Move a slider off its default first, so the reset below is observable.
+    fireEvent.change(screen.getByLabelText("Edge strength"), { target: { value: "75" } });
+    await advanceDebounce();
+    expect(renderLineArtAsyncMock).toHaveBeenCalledTimes(2);
+
+    const newSource = makeSourcePixels(8, 8);
+    downscaleToMaxMock.mockResolvedValue(newSource);
+    const file = makeFile();
+    importPhotoMock.mockResolvedValue({
+      ok: true,
+      value: {
+        original: makeOriginalBlob(),
+        width: 50,
+        height: 50,
+        thumbnail: makeThumbnailBlob(),
+      },
+    });
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    pickFile(input, file);
+    await settlePhotoPick();
+
+    expect(importPhotoMock).toHaveBeenCalledWith(file);
+    // Controls back at engine defaults.
+    expect((screen.getByLabelText("Edge strength") as HTMLInputElement).value).toBe("50");
+    expect((screen.getByLabelText("Threshold") as HTMLInputElement).value).toBe("50");
+    expect((screen.getByLabelText("Line thickness") as HTMLInputElement).value).toBe("1");
+    // No navigation — the swap happens in place.
+    expect(push).not.toHaveBeenCalled();
+
+    await advanceDebounce();
+    expect(renderLineArtAsyncMock).toHaveBeenCalledTimes(3);
+    expect(renderLineArtAsyncMock.mock.calls[2][0].data).toEqual(newSource.data);
+  });
+
+  it("leaves the current photo untouched when the picker is cancelled", async () => {
+    takePendingImportMock.mockReturnValue({
+      original: makeOriginalBlob(),
+      width: 100,
+      height: 100,
+      thumbnail: makeThumbnailBlob(),
+    });
+
+    render(<ConvertPage />);
+    await settle();
+    await advanceDebounce();
+    expect(renderLineArtAsyncMock).toHaveBeenCalledTimes(1);
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    pickFile(input, undefined);
+    await settlePhotoPick();
+
+    expect(importPhotoMock).not.toHaveBeenCalled();
+    expect((screen.getByLabelText("Edge strength") as HTMLInputElement).value).toBe("50");
+    expect(renderLineArtAsyncMock).toHaveBeenCalledTimes(1);
+    expect(push).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// (i) Save after a source swap on a re-tune entry (FTA-018 round 2). A swap
+// makes the stored reference's originalImage/thumbnail stale, so Save must
+// persist the new ones alongside the re-converted line art; a save with no
+// swap must keep the original patch shape exactly (settings/line-art only).
+// ---------------------------------------------------------------------------
+
+describe("ConvertPage — Save after a photo swap on a re-tune entry", () => {
+  it("persists the new originalImage and thumbnail alongside the re-converted line art", async () => {
+    currentRef = "ref-123";
+    getReferenceMock.mockResolvedValue({
+      ok: true,
+      value: {
+        id: "ref-123",
+        name: "My reference",
+        originalImage: makeOriginalBlob(),
+        lineArtImage: makeOriginalBlob(),
+        thumbnail: makeThumbnailBlob(),
+        settings: { edgeStrength: 50, threshold: 50, thickness: 1, inverted: false },
+        lastOpacity: 50,
+        createdAt: 1,
+      },
+    });
+    updateReferenceMock.mockResolvedValue({
+      ok: true,
+      value: {
+        id: "ref-123",
+        name: "My reference",
+        originalImage: makeOriginalBlob(),
+        lineArtImage: makeOriginalBlob(),
+        thumbnail: makeThumbnailBlob(),
+        settings: { edgeStrength: 50, threshold: 50, thickness: 1, inverted: false },
+        lastOpacity: 50,
+        createdAt: 1,
+      },
+    });
+
+    render(<ConvertPage />);
+    await settle();
+    await advanceDebounce();
+
+    const newOriginal = makeOriginalBlob();
+    const newThumbnail = makeThumbnailBlob();
+    importPhotoMock.mockResolvedValue({
+      ok: true,
+      value: { original: newOriginal, width: 50, height: 50, thumbnail: newThumbnail },
+    });
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    pickFile(input, makeFile());
+    await settlePhotoPick();
+    await advanceDebounce();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save to library" }));
+    await settle();
+
+    expect(updateReferenceMock).toHaveBeenCalledTimes(1);
+    const patch = updateReferenceMock.mock.calls[0][1];
+    expect(patch.originalImage).toBe(newOriginal);
+    expect(patch.thumbnail).toBe(newThumbnail);
+    expect(push).toHaveBeenCalledWith("/trace/ref-123");
+  });
+
+  it("omits originalImage and thumbnail when the photo was never swapped", async () => {
+    currentRef = "ref-123";
+    getReferenceMock.mockResolvedValue({
+      ok: true,
+      value: {
+        id: "ref-123",
+        name: "My reference",
+        originalImage: makeOriginalBlob(),
+        lineArtImage: makeOriginalBlob(),
+        thumbnail: makeThumbnailBlob(),
+        settings: { edgeStrength: 50, threshold: 50, thickness: 1, inverted: false },
+        lastOpacity: 50,
+        createdAt: 1,
+      },
+    });
+    updateReferenceMock.mockResolvedValue({
+      ok: true,
+      value: {
+        id: "ref-123",
+        name: "My reference",
+        originalImage: makeOriginalBlob(),
+        lineArtImage: makeOriginalBlob(),
+        thumbnail: makeThumbnailBlob(),
+        settings: { edgeStrength: 50, threshold: 50, thickness: 1, inverted: false },
+        lastOpacity: 50,
+        createdAt: 1,
+      },
+    });
+
+    render(<ConvertPage />);
+    await settle();
+    await advanceDebounce();
+
+    // No photo swap this time — just move a slider, same as any ordinary re-tune.
+    fireEvent.change(screen.getByLabelText("Edge strength"), { target: { value: "60" } });
+    await advanceDebounce();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save to library" }));
+    await settle();
+
+    expect(updateReferenceMock).toHaveBeenCalledTimes(1);
+    const patch = updateReferenceMock.mock.calls[0][1];
+    expect(patch).toEqual({
+      lineArtImage: expect.any(Object),
+      settings: { edgeStrength: 60, threshold: 50, thickness: 1, inverted: false },
+    });
+    expect("originalImage" in patch).toBe(false);
+    expect("thumbnail" in patch).toBe(false);
+    expect(push).toHaveBeenCalledWith("/trace/ref-123");
   });
 });
 

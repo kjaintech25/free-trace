@@ -16,7 +16,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button, Slider } from "@/components/ui";
+import { Button, IconButton, Slider } from "@/components/ui";
 import {
   DEFAULT_LINE_ART_SETTINGS,
   EDGE_STRENGTH_RANGE,
@@ -32,14 +32,23 @@ import { downscaleToMax } from "@/lib/image";
 import { takePendingImport } from "@/lib/pendingImport";
 import { readPreferences } from "@/lib/preferences";
 import { getReference, saveReference, updateReference } from "@/lib/storage";
+import { usePhotoPicker } from "@/lib/usePhotoPicker";
 
 /** Settle window (SPEC §6.2: preview updates within ~150ms of a slider settling). */
 const DEBOUNCE_MS = 120;
 
-/** Where this screen's source came from, and how "Save" should behave. */
+/**
+ * Where this screen's source came from, and how "Save" should behave.
+ *
+ * `retune`'s `thumbnail` is only ever populated by a "Choose a different
+ * photo" swap (FTA-018 round 2) — the original `?ref=` load has no reason to
+ * regenerate a thumbnail nothing asked it to touch. `sourceSwapped` (state,
+ * below) is what actually gates whether Save persists it, not this field's
+ * presence, so a stale leftover here can never accidentally get written.
+ */
 type EntryMode =
   | { kind: "new"; originalImage: Blob; thumbnail: Blob }
-  | { kind: "retune"; refId: string; originalImage: Blob };
+  | { kind: "retune"; refId: string; originalImage: Blob; thumbnail?: Blob };
 
 export default function ConvertPage() {
   return (
@@ -66,6 +75,12 @@ function ConvertScreen() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Whether "Choose a different photo" has replaced the source since this
+  // screen loaded (FTA-018 round 2) — gates whether Save persists a new
+  // originalImage/thumbnail for a re-tune entry. Cleared whenever an entry
+  // is (re-)established, set only by a successful swap.
+  const [sourceSwapped, setSourceSwapped] = useState(false);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // The pristine, never-transferred source pixels. A ref, not state: it never
   // needs to trigger a render on its own, only the settings/entry it is
@@ -91,6 +106,7 @@ function ConvertScreen() {
             originalImage: pending.original,
             thumbnail: pending.thumbnail,
           });
+          setSourceSwapped(false);
           setSettings(DEFAULT_LINE_ART_SETTINGS);
         } catch (error) {
           if (cancelled) return;
@@ -123,6 +139,7 @@ function ConvertScreen() {
             refId,
             originalImage: result.value.originalImage,
           });
+          setSourceSwapped(false);
           setSettings(normaliseLineArtSettings(result.value.settings));
         } catch (error) {
           if (cancelled) return;
@@ -237,6 +254,62 @@ function ConvertScreen() {
     setSettings((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
 
+  // -------------------------------------------------------------------------
+  // Back (FTA-018): nothing here is saved. A new import simply returns to
+  // the library — there was never anything persisted to undo. A re-tune
+  // returns to the trace screen it came from, leaving the stored reference
+  // exactly as it was (no updateReference call).
+  // -------------------------------------------------------------------------
+  function handleBack() {
+    if (!entry) return;
+    if (entry.kind === "retune") {
+      router.push(`/trace/${entry.refId}`);
+      return;
+    }
+    router.push("/");
+  }
+
+  // -------------------------------------------------------------------------
+  // "Choose a different photo" (FTA-018): swaps the source in place — no
+  // navigation, no pendingImport hand-off (this bypasses that module
+  // entirely; it's for the one-time import->convert hop, not an in-place
+  // swap). The four controls reset to engine defaults and a fresh
+  // conversion is requested through the same debounced effect a slider
+  // change uses, by changing `settings` (its identity, not just a field).
+  // -------------------------------------------------------------------------
+  const { inputRef: photoPickerInputRef, handleChange: handlePhotoPickerChange, openPicker, error: photoPickerError } =
+    usePhotoPicker({
+      onPicked: (image) => {
+        void (async () => {
+          setConvertError(null);
+          try {
+            const pixels = await downscaleToMax(image.original, MAX_LONG_EDGE);
+            sourceRef.current = pixels;
+            setEntry((previous) => {
+              if (!previous) return previous;
+              if (previous.kind === "new") {
+                return { kind: "new", originalImage: image.original, thumbnail: image.thumbnail };
+              }
+              return {
+                kind: "retune",
+                refId: previous.refId,
+                originalImage: image.original,
+                thumbnail: image.thumbnail,
+              };
+            });
+            setSourceSwapped(true);
+            setSettings(DEFAULT_LINE_ART_SETTINGS);
+          } catch (error) {
+            setConvertError(
+              error instanceof Error
+                ? error.message
+                : "That photo could not be prepared for conversion.",
+            );
+          }
+        })();
+      },
+    });
+
   function encodePng(canvas: HTMLCanvasElement): Promise<Blob | null> {
     return new Promise((resolve) => {
       canvas.toBlob((blob) => resolve(blob), "image/png");
@@ -274,7 +347,21 @@ function ConvertScreen() {
       return;
     }
 
-    const result = await updateReference(entry.refId, { lineArtImage: png, settings });
+    // A source swap ("Choose a different photo", FTA-018 round 2) means the
+    // stored reference's own originalImage/thumbnail are now stale — persist
+    // the new ones alongside the re-converted line art. Otherwise this is
+    // the original patch shape: settings/line-art only, original untouched.
+    const result = await updateReference(
+      entry.refId,
+      sourceSwapped
+        ? {
+            originalImage: entry.originalImage,
+            thumbnail: entry.thumbnail,
+            lineArtImage: png,
+            settings,
+          }
+        : { lineArtImage: png, settings },
+    );
     if (result.ok) {
       router.push(`/trace/${entry.refId}`);
       return;
@@ -306,7 +393,27 @@ function ConvertScreen() {
   }
 
   return (
-    <main className="flex min-h-dvh flex-col bg-bg text-text">
+    <main className="relative flex min-h-dvh flex-col bg-bg text-text">
+      <IconButton
+        aria-label="Back"
+        onClick={handleBack}
+        className="absolute left-[calc(var(--safe-left)+1rem)] top-[calc(var(--safe-top)+1rem)] z-10 bg-surface/80 backdrop-blur-md"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M15 6 9 12l6 6" />
+        </svg>
+      </IconButton>
+
       <div className="flex flex-1 items-center justify-center p-4">
         <div
           className="relative aspect-square w-full max-w-md overflow-hidden rounded-xl bg-black"
@@ -334,6 +441,9 @@ function ConvertScreen() {
         <p className="px-4 text-center text-sm text-text-muted">{convertError}</p>
       )}
       {saveError && <p className="px-4 text-center text-sm text-text-muted">{saveError}</p>}
+      {photoPickerError && (
+        <p className="px-4 text-center text-sm text-text-muted">{photoPickerError}</p>
+      )}
 
       <div
         className="flex flex-col gap-4 rounded-t-xl bg-surface p-4"
@@ -376,6 +486,17 @@ function ConvertScreen() {
             {saving ? "Saving…" : "Save to library"}
           </Button>
         </div>
+
+        <Button variant="quiet" onClick={openPicker}>
+          Choose a different photo
+        </Button>
+        <input
+          ref={photoPickerInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handlePhotoPickerChange}
+        />
       </div>
     </main>
   );
