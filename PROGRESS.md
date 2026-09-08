@@ -13,6 +13,7 @@ Notes:
 
 ## Run log
 - 2026-09-08 08:26 ET — plan approved by Kush; Batch 0 started.
+- 2026-09-08 10:5x ET — T-13 merged into v1 (PR #9).
 - 2026-09-08 10:4x ET — T-07 merged into v1 (PR #8); lane B complete. T-12 pulled forward into the freed slot.
 - 2026-09-08 10:3x ET — T-05 merged into v1 (PR #7); lane A complete. T-13 pulled forward into the freed slot.
 - 2026-09-08 10:2x ET — T-08 merged into v1 (PR #6).
@@ -52,9 +53,11 @@ Board: FTA-006 · Model: Sonnet · Branch: t-05-library · PR: #7 · Attempts: 1
 Checks: build ✅ typecheck ✅ lint ✅ test ✅ (75 on branch) preview ✅
 Notes: components/Library.tsx — 2-col grid, sticky "+ Add photo" bar, ⋯ Sheet with Rename/Re-tune/Delete(ConfirmDialog). Object URLs via useMemo + one cleanup effect. Lane A COMPLETE.
 
-## T-13 — Settings screen (pulled forward from the tail; needs only storage + primitives)
-State: IN PROGRESS
-Board: FTA-015 · Model: Sonnet · Branch: t-13-settings · PR: · Attempts: 1
+## T-13 — Settings screen (pulled forward from the tail)
+State: DONE
+Board: FTA-015 · Model: Sonnet · Branch: t-13-settings · PR: #9 · Attempts: 1
+Checks: build ✅ typecheck ✅ lint ✅ test ✅ (150 on branch) preview ✅
+Notes: lib/preferences.ts (PREF_DEFAULT_OPACITY, PREF_KEEP_AWAKE, readPreferences/writePreference), components/Settings.tsx at /settings, gear on the Library. ⚠️ T-11 must read PREF_KEEP_AWAKE; T-09/T-07 should read PREF_DEFAULT_OPACITY for a NEW reference's initial opacity — carried to those briefs / integration.
 ## T-06 — Line-art engine
 State: DONE
 Board: FTA-007 · Model: Opus · Branch: t-06-edge-engine · PR: #4 · Attempts: 1
