@@ -13,6 +13,7 @@ Notes:
 
 ## Run log
 - 2026-09-08 08:26 ET — plan approved by Kush; Batch 0 started.
+- 2026-09-08 08:51 ET — T-02 merged into v1 (PR #2). Lanes A and B dispatched in worktrees.
 - 2026-09-08 08:41 ET — T-01 merged into v1 (PR #1). Vercel preset fixed (vercel.json). Preview URLs still behind Vercel Authentication — Kush to disable in the dashboard (or allow the orchestrator to).
 
 ## T-01 — Project scaffold, theme, fonts
@@ -22,8 +23,10 @@ Checks: build ✅ typecheck ✅ lint ✅ test ✅ preview ✅ (CI green, preview
 Notes: fonts via next/font/google (no new runtime deps); vitest added. Orchestrator added vercel.json.
 
 ## T-02 — Design tokens and shared UI primitives
-State: TODO
-Board: FTA-003 · Model: Sonnet · Branch: t-02-design-primitives · PR: · Attempts: 0
+State: DONE
+Board: FTA-003 · Model: Sonnet · Branch: t-02-design-primitives · PR: #2 · Attempts: 1
+Checks: build ✅ typecheck ✅ lint ✅ test ✅ (9 tests) preview ✅
+Notes: components/ui/{Button,IconButton,Slider,Sheet,Card,ConfirmDialog}; /dev/primitives route; jsdom + testing-library as devDeps; vitest.config.ts carries the @/ alias (tsconfig paths are NOT read by vitest).
 
 ## Lane A — T-03 storage (FTA-004) · T-04 import (FTA-005) · T-05 library (FTA-006) — TODO
 ## Lane B — T-06 edge engine (FTA-007) · T-07 convert (FTA-008) — TODO
