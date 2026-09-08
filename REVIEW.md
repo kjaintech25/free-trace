@@ -1,6 +1,6 @@
 # Free Trace — review packet for Kush
 
-**Status: FINAL (2026-09-08, 11:50 ET).** All 15 tickets plus your two review requests are
+**Status: FINAL (2026-09-08, 12:20 ET; lines-only overlay added after go-live).** All 15 tickets plus your two review requests are
 merged into `v1`. Your phone review at ~12:30 passed all three gates (camera, gestures,
 import → convert → save). The two things you asked for after it are in: **back / start-over at
 every step** and **flip camera**. The automated test rig also ran green on every pull request
@@ -96,9 +96,9 @@ because the palette has no red; new references start at your Settings default op
 
 ## 6. Questions for you
 
-1. **White background.** The line art is black lines on a white sheet, so at 100% opacity it
-   hides the paper and at 50% you see both half-strength. Would you prefer only the black
-   lines floating over the paper (white made transparent)? Small engine change if yes.
+1. ~~White background~~ **ANSWERED and shipped (FTA-020, 12:20 ET):** the line art is now
+   lines-only over the paper. References you saved before that keep the old white sheet until
+   you tap Re-tune on them once.
 2. Camera flip: does the phone hand over the camera you expect by default, and does the
    mirrored front view feel right?
 3. Line art: of the photos you converted, which was worst, and what was wrong (noise, missing
