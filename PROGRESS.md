@@ -13,6 +13,7 @@ Notes:
 
 ## Run log
 - 2026-09-08 08:26 ET — plan approved by Kush; Batch 0 started.
+- 2026-09-08 11:3x ET — T-12 merged into v1 (PR #12). T-14 builder STOPPED before its browser step on the low-RAM notice (swap 4.4→4.8 GB of 5); FTA-011 BLOCKED on memory clearing; re-run alone later.
 - 2026-09-08 11:1x ET — T-09 merged into v1 (PR #11). T-14 + T-10 dispatched in parallel.
 - 2026-09-08 10:5x ET — FTA-017 polish (default opacity wired into convert save) merged, PR #10.
 - 2026-09-08 10:5x ET — T-13 merged into v1 (PR #9).
@@ -72,9 +73,11 @@ Board: FTA-008 · Model: Sonnet · Branch: t-07-convert-screen · PR: #8 · Atte
 Checks: build ✅ typecheck ✅ lint ✅ test ✅ (111 on branch) preview ✅
 Notes: app/convert/page.tsx — pending-import + ?ref re-tune paths, 4 controls, 120ms debounce, press-and-hold compare (touch-action none), PNG via canvas.toBlob, save → /trace/[id]. Worker chunk confirmed emitted (turbopack-worker-*.js). Lane B COMPLETE.
 
-## T-12 — PWA manifest, icons, offline service worker (pulled forward; shell routes exist, trace screen still evolving)
-State: IN PROGRESS
-Board: FTA-014 · Model: Opus · Branch: t-12-pwa · PR: · Attempts: 1
+## T-12 — PWA manifest, icons, offline service worker (pulled forward)
+State: DONE
+Board: FTA-014 · Model: Opus · Branch: t-12-pwa · PR: #12 · Attempts: 1
+Checks: typecheck ✅ lint ✅ test ✅ (182) build ✅ (CI) preview ✅ · offline behaviour UNVERIFIED (no browser) — scripts/offline-check.md
+Notes: app/manifest.ts, icons via scripts/make-icons.mjs (no alpha — iOS black-box trap), public/sw.js + RegisterSW, lib/swRouting.ts + source guard, KNOWN_ISSUES.md §1 standalone fallback (manifest.ts:25 display → "browser"). DECISIONS 10, 11. ⚠️ T-11 must make TraceScreen read the id from location.pathname (KNOWN_ISSUES §3).
 ## T-08 — Camera feed
 State: DONE
 Board: FTA-009 · Model: Opus · Branch: t-08-camera-feed · PR: #6 · Attempts: 1
