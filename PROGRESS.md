@@ -13,6 +13,7 @@ Notes:
 
 ## Run log
 - 2026-09-08 08:26 ET — plan approved by Kush; Batch 0 started.
+- 2026-09-08 13:1x ET — T-14 merged into v1 (PR #16). ALL 15 code tickets merged. Kush's phone review PASSED gates 1–3 at ~12:3x; FTA-018 (back/start-over) + FTA-019 (camera flip) dispatched.
 - 2026-09-08 11:5x ET — T-11 merged into v1 (PR #14). ALL code tickets merged except T-14 (held for memory).
 - 2026-09-08 11:4x ET — T-10 merged into v1 (PR #13). T-11 dispatched alone (memory).
 - 2026-09-08 11:3x ET — T-12 merged into v1 (PR #12). T-14 builder STOPPED before its browser step on the low-RAM notice (swap 4.4→4.8 GB of 5); FTA-011 BLOCKED on memory clearing; re-run alone later.
@@ -99,8 +100,10 @@ Checks: typecheck ✅ lint ✅ test ✅ (262) build ✅ (builder + CI) preview �
 Notes: lib/gestures.ts (pure state machine; midpoint-anchored pinch+rotate derived: t = m − R(dθ)·f·(m₀ − t₀); every output via clampTransform), components/useOverlayGestures.ts (pointer capture; touchstart/touchmove/gesturestart/gesturechange non-passive preventDefault), data-locked on the container. Mutation-tested (centre-anchoring fails 8/44). Control bar must stay a SIBLING of the overlay container (z-30).
 
 ## T-14 — Verification harness
-State: BLOCKED (memory) — attempt 1 stopped before its browser step; re-run ALONE when Kush clears memory
-Board: FTA-011 · Model: Opus · Branch: t-14-verification-harness · PR: · Attempts: 0 counted
+State: DONE
+Board: FTA-011 · Model: Opus · Branch: t-14-verification-harness · PR: #16 · Attempts: 1 (an earlier start was stopped for memory, not a failure)
+Checks: typecheck ✅ lint ✅ test ✅ (318) build ✅ e2e ✅ (7 passed, 11.6s) CI gates+e2e ✅ preview ✅
+Notes: playwright.config.ts (next build + next start :3417), tests/e2e/trace.spec.ts (opacity sweep + pixel gate + negative control, drag, pinch, lock, flip/invert, chrome collapse), tests/e2e/fakeCamera.ts shim (DECISIONS 13), fixture 1.15MB y4m. Gate validated both ways (hidden: delta −891 → FAIL; shown: delta 26601 → PASS; Linux CI 26594). Screenshots in ../artifacts-t14/ (14 files) and as CI artifact trace-screenshots. §12 item 7 for T-08/09/10/11 satisfied by these screenshots.
 
 ## T-11 — Wake lock and collapsing chrome (+ keepAwake wiring + KNOWN_ISSUES §3 id-from-location fix)
 State: DONE
