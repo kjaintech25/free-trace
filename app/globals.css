@@ -58,3 +58,59 @@ body {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* Slider primitive (components/ui/Slider.tsx). The input's own box is the
+   full 44px touch target (SPEC §7 one-thumb rule); the visible track is a
+   thin 4px bar centered inside it. Fill percentage is passed in per-instance
+   via the --fill-percent custom property, which inherits into the
+   ::-webkit-slider-runnable-track pseudo-element. */
+.ft-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2.75rem;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+
+.ft-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--accent) var(--fill-percent, 0%),
+    var(--surface) var(--fill-percent, 0%)
+  );
+}
+
+.ft-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-top: -1.35rem;
+  border-radius: 9999px;
+  border: none;
+  background: var(--accent);
+}
+
+.ft-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--surface);
+}
+
+.ft-slider::-moz-range-progress {
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--accent);
+}
+
+.ft-slider::-moz-range-thumb {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  border: none;
+  background: var(--accent);
+}
