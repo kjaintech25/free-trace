@@ -8,3 +8,5 @@
 | 4 | 2026-09-08 | setup | Dollar caps per ticket/run | Max 3 attempts per ticket + token log on the board | Subagent spend is not metered per call in this harness. |
 | 5 | 2026-09-08 | setup | T-14 after T-13 | T-14 inside lane C after T-09 | §12 item 7 needs the harness for T-10/T-11; as written it could not be satisfied. |
 | 6 | 2026-09-08 | setup | 3–4 concurrent subagents | Max 2, each in its own worktree | 8 GB build machine; three `next build`s at once has frozen it before. |
+| 7 | 2026-09-08 | T-03 | `idb` package permitted (§4) | Added `idb` ^8.0.3 as a runtime dependency | Raw IndexedDB is callback-and-event based; `idb` is a ~1.5KB promise wrapper with real generic types, so `lib/storage.ts` can be typed end to end instead of casting every request. Nothing else in the app imports it. |
+| 8 | 2026-09-08 | T-03 | Silent on a test harness for IndexedDB | Added `fake-indexeddb` ^6.2.5 as a devDependency | §12.4 requires the storage tests to pass and jsdom ships no IndexedDB at all, so there is nothing to test against without it. devDependency only — never in the shipped bundle. |
