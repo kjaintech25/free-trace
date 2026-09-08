@@ -30,6 +30,7 @@ import {
 import { renderLineArtAsync, terminateLineArtWorker } from "@/lib/edgesClient";
 import { downscaleToMax } from "@/lib/image";
 import { takePendingImport } from "@/lib/pendingImport";
+import { readPreferences } from "@/lib/preferences";
 import { getReference, saveReference, updateReference } from "@/lib/storage";
 
 /** Settle window (SPEC §6.2: preview updates within ~150ms of a slider settling). */
@@ -255,13 +256,14 @@ function ConvertScreen() {
     }
 
     if (entry.kind === "new") {
+      const { defaultOpacity } = await readPreferences();
       const result = await saveReference({
         name: "Untitled",
         originalImage: entry.originalImage,
         lineArtImage: png,
         thumbnail: entry.thumbnail,
         settings,
-        lastOpacity: 50,
+        lastOpacity: defaultOpacity,
       });
       if (result.ok) {
         router.push(`/trace/${result.value.id}`);
