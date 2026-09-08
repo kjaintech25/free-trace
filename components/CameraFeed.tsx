@@ -42,11 +42,14 @@ function Panel({
   onAction?: () => void;
   hint?: ReactNode;
 }) {
+  // z-20 puts the failure copy above the T-09 overlay slot (z-10) so its action
+  // stays tappable, and level with the close button, which is later in the DOM
+  // and so stays reachable on top of it.
   return (
     <div
       role="status"
       aria-live="polite"
-      className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-bg/95 px-8 text-center"
+      className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-bg/95 px-8 text-center"
     >
       <p className="font-sans text-base font-medium text-text">{title}</p>
       <p className="max-w-xs font-sans text-sm text-text-muted">{body}</p>
