@@ -55,8 +55,9 @@ export function TraceScreen({ id }: { id: string }) {
     useState<OverlayTransform>(IDENTITY_TRANSFORM);
   const [opacity, setOpacity] = useState(100);
   const [inverted, setInverted] = useState(false);
-  // Present, toggles, does nothing else. T-10 makes the gesture layer respect
-  // it; rendering the engaged amber state here means T-10 adds behaviour only.
+  // Session-only, by design: SPEC §5's reference record has no lock field, so
+  // a lock lasts until the screen is closed and never reaches storage. The
+  // gesture layer reads it and drops every sample while it is true.
   const [locked, setLocked] = useState(false);
 
   // --- debounced persistence ----------------------------------------------
@@ -149,6 +150,13 @@ export function TraceScreen({ id }: { id: string }) {
     schedule({ settings: { inverted: next } });
   }, [inverted, schedule]);
 
+  // The gesture layer's single exit point (T-10). Through clampTransform for
+  // the same reason as the flip below: there is exactly one door into this
+  // state object and the validator is nailed to it.
+  const handleTransformChange = useCallback((next: OverlayTransform) => {
+    setTransform((previous) => clampTransform(next, previous));
+  }, []);
+
   const handleFlipToggle = useCallback(() => {
     // Through clampTransform even though a boolean cannot go out of range:
     // every write to the transform goes through the same validator, so there
@@ -196,6 +204,8 @@ export function TraceScreen({ id }: { id: string }) {
             opacity={opacity}
             transform={transform}
             inverted={inverted}
+            locked={locked}
+            onTransformChange={handleTransformChange}
           />
           <TraceControls
             opacity={opacity}
