@@ -5,6 +5,7 @@ out
 .env*
 !.env.example
 *.tsbuildinfo
+next-env.d.ts
 artifacts/
 test-results/
 playwright-report/
