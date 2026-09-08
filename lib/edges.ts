@@ -381,7 +381,10 @@ function dilate(mask: Uint8Array, width: number, height: number, radius: number)
  * short for `width * height * 4`), because that is a caller bug rather than an
  * extreme value, and silently returning a blank image would hide it.
  *
- * @returns a NEW buffer; alpha is 255 everywhere.
+ * @returns a NEW buffer. A LINE pixel is fully opaque — black (0,0,0,255), or
+ * white (255,255,255,255) when `inverted`. Every other pixel is fully
+ * transparent (0,0,0,0), so the result composites as lines-only over
+ * whatever sits behind it (FTA-020) rather than as an opaque sheet.
  */
 export function renderLineArt(input: PixelBuffer, settings: LineArtSettings): PixelBuffer {
   const width = Number.isFinite(input.width) ? Math.max(0, Math.floor(input.width)) : 0;
@@ -422,16 +425,20 @@ export function renderLineArt(input: PixelBuffer, settings: LineArtSettings): Pi
   let mask = sobelToMask(blurred, width, height, thresholdSquared);
   if (thickness > 0) mask = dilate(mask, width, height, thickness);
 
-  // Black lines on white by default; white on black when inverted.
+  // Black lines by default, white when inverted — and ONLY the line pixels
+  // get an alpha value at all. Everything else is fully transparent (all
+  // four channels 0), so the sheet this used to be opaque white is gone: a
+  // consumer composites just the lines over whatever sits behind them.
   const lineValue = inverted ? 255 : 0;
-  const backgroundValue = inverted ? 0 : 255;
   const out = new Uint8ClampedArray(pixelCount * 4);
   for (let i = 0, p = 0; i < pixelCount; i++, p += 4) {
-    const v = mask[i] === 1 ? lineValue : backgroundValue;
-    out[p] = v;
-    out[p + 1] = v;
-    out[p + 2] = v;
-    out[p + 3] = 255;
+    if (mask[i] === 1) {
+      out[p] = lineValue;
+      out[p + 1] = lineValue;
+      out[p + 2] = lineValue;
+      out[p + 3] = 255;
+    }
+    // else: leave at the Uint8ClampedArray's zero-initialised (0,0,0,0).
   }
 
   return { width, height, data: out };

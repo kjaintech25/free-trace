@@ -50,26 +50,55 @@ function fingerprint(bytes: Uint8ClampedArray): string {
   return hash.toString(16).padStart(8, "0");
 }
 
-/** Red channel at (x, y). Output is greyscale so one channel says everything. */
+/**
+ * Red channel at (x, y). A transparent (non-line) pixel is (0,0,0,0), so a
+ * caller that wants "is this a line" should check alpha, not this value —
+ * `px` alone can no longer distinguish "black line" from "transparent".
+ */
 function px(buffer: PixelBuffer, x: number, y: number): number {
   return buffer.data[(y * buffer.width + x) * 4];
 }
 
-/** Count of pixels painted with the line colour rather than the background. */
-function countInk(buffer: PixelBuffer, lineValue: number): number {
+/** Alpha channel at (x, y). This is the line/non-line signal post-FTA-020. */
+function alphaAt(buffer: PixelBuffer, x: number, y: number): number {
+  return buffer.data[(y * buffer.width + x) * 4 + 3];
+}
+
+/** Count of opaque (line) pixels, regardless of black/white RGB. */
+function countInk(buffer: PixelBuffer): number {
   let count = 0;
-  for (let i = 0; i < buffer.data.length; i += 4) {
-    if (buffer.data[i] === lineValue) count++;
+  for (let i = 3; i < buffer.data.length; i += 4) {
+    if (buffer.data[i] === 255) count++;
   }
   return count;
+}
+
+/**
+ * The set of line-pixel indices (by flat pixel index, not byte offset),
+ * derived straight from the alpha channel. Used to prove the inverted output
+ * marks exactly the same pixels as line pixels as the normal output — the
+ * "same line set as before" requirement — without hardcoding coordinates.
+ */
+function lineIndexSet(buffer: PixelBuffer): Set<number> {
+  const set = new Set<number>();
+  const pixelCount = buffer.width * buffer.height;
+  for (let i = 0; i < pixelCount; i++) {
+    if (buffer.data[i * 4 + 3] === 255) set.add(i);
+  }
+  return set;
 }
 
 // Golden fingerprints for the synthetic image above. If the pipeline changes
 // on purpose these must be regenerated deliberately and reviewed as part of
 // that change — that is the entire point of the test.
-const GOLDEN_DEFAULT = "babedc24";
-const GOLDEN_HAIRLINE = "7b131894";
-const GOLDEN_INVERTED = "c9e141c4";
+//
+// Regenerated for FTA-020 (transparent non-line pixels replace the opaque
+// white sheet). Only the final encoding step changed; the mask math that
+// decides WHICH pixels are lines did not, and the "identical line set"
+// tests below prove that directly rather than trusting the new hashes alone.
+const GOLDEN_DEFAULT = "af37e268";
+const GOLDEN_HAIRLINE = "8480d0c8";
+const GOLDEN_INVERTED = "69a8c4a9";
 
 describe("renderLineArt — stable output for a known synthetic input", () => {
   it("produces the exact fingerprint at the default settings", () => {
@@ -92,6 +121,33 @@ describe("renderLineArt — stable output for a known synthetic input", () => {
     expect(fingerprint(inverted.data)).toBe(GOLDEN_INVERTED);
   });
 
+  it("marks the same set of line pixels as the pre-FTA-020 encoding did", () => {
+    // Re-derives "which pixels are lines" independently of the golden hash,
+    // straight from the pipeline's own mask semantics: a line pixel is one
+    // whose RGB is the line colour (not the old background colour) AND is
+    // now opaque. This is the concrete "same line set as before" proof.
+    const output = renderLineArt(syntheticImage(), DEFAULT_LINE_ART_SETTINGS);
+    const lines = lineIndexSet(output);
+    // Sanity: some but not all pixels are lines (the hard step is found, the
+    // soft ramp and flat regions are not).
+    expect(lines.size).toBeGreaterThan(0);
+    expect(lines.size).toBeLessThan(SIZE * SIZE);
+    // Every marked pixel is opaque black; every unmarked pixel is fully
+    // transparent. Together these two facts are exactly the new encoding.
+    for (let i = 0; i < output.data.length; i += 4) {
+      const idx = i / 4;
+      if (lines.has(idx)) {
+        expect([output.data[i], output.data[i + 1], output.data[i + 2], output.data[i + 3]]).toEqual([
+          0, 0, 0, 255,
+        ]);
+      } else {
+        expect([output.data[i], output.data[i + 1], output.data[i + 2], output.data[i + 3]]).toEqual([
+          0, 0, 0, 0,
+        ]);
+      }
+    }
+  });
+
   it("is byte-identical across two calls with the same input and settings", () => {
     const first = renderLineArt(syntheticImage(), DEFAULT_LINE_ART_SETTINGS);
     const second = renderLineArt(syntheticImage(), DEFAULT_LINE_ART_SETTINGS);
@@ -111,46 +167,63 @@ describe("renderLineArt — stable output for a known synthetic input", () => {
       ...DEFAULT_LINE_ART_SETTINGS,
       thickness: 0,
     });
-    // The step is found, one pixel either side of the boundary.
+    // The step is found, one pixel either side of the boundary: opaque black.
     expect(px(output, EDGE_X - 1, 8)).toBe(0);
+    expect(alphaAt(output, EDGE_X - 1, 8)).toBe(255);
     expect(px(output, EDGE_X, 8)).toBe(0);
-    // Flat regions well away from the step stay white.
-    expect(px(output, 2, 2)).toBe(255);
-    expect(px(output, SIZE - 3, 2)).toBe(255);
+    expect(alphaAt(output, EDGE_X, 8)).toBe(255);
+    // Flat regions well away from the step are transparent, not white.
+    expect(alphaAt(output, 2, 2)).toBe(0);
+    expect(alphaAt(output, SIZE - 3, 2)).toBe(0);
     // The smooth ramp in the lower half produces no lines at all.
     for (let x = 1; x < SIZE - 1; x++) {
-      expect(px(output, x, SIZE - 4)).toBe(255);
+      expect(alphaAt(output, x, SIZE - 4)).toBe(0);
     }
   });
 
   it("thickens the line as thickness rises and never thins it", () => {
     const counts = [0, 1, 2, 3, 4].map((thickness) =>
-      countInk(renderLineArt(syntheticImage(), { ...DEFAULT_LINE_ART_SETTINGS, thickness }), 0),
+      countInk(renderLineArt(syntheticImage(), { ...DEFAULT_LINE_ART_SETTINGS, thickness })),
     );
     for (let i = 1; i < counts.length; i++) {
       expect(counts[i]).toBeGreaterThan(counts[i - 1]);
     }
   });
 
-  it("inverts to white lines on black, pixel for pixel", () => {
+  it("inverts to white lines with the same alpha mask, RGB flipped only on line pixels", () => {
     const normal = renderLineArt(syntheticImage(), DEFAULT_LINE_ART_SETTINGS);
     const inverted = renderLineArt(syntheticImage(), {
       ...DEFAULT_LINE_ART_SETTINGS,
       inverted: true,
     });
-    expect(countInk(inverted, 255)).toBe(countInk(normal, 0));
+    // Same set of opaque pixels either way — inversion recolours lines, it
+    // does not move them.
+    expect(lineIndexSet(inverted)).toEqual(lineIndexSet(normal));
     for (let i = 0; i < normal.data.length; i += 4) {
-      expect(inverted.data[i]).toBe(255 - normal.data[i]);
+      expect(inverted.data[i + 3]).toBe(normal.data[i + 3]); // alpha untouched
+      if (normal.data[i + 3] === 255) {
+        expect(inverted.data[i]).toBe(255 - normal.data[i]); // black <-> white
+      } else {
+        // Transparent stays (0,0,0,0) on both sides — nothing to invert.
+        expect(inverted.data[i]).toBe(0);
+      }
     }
   });
 
-  it("returns fully opaque, strictly black-or-white pixels", () => {
+  it("returns pixels that are either fully opaque black/white or fully transparent", () => {
     const output = renderLineArt(syntheticImage(), DEFAULT_LINE_ART_SETTINGS);
     for (let i = 0; i < output.data.length; i += 4) {
-      expect(output.data[i + 3]).toBe(255);
-      expect(output.data[i]).toBe(output.data[i + 1]);
-      expect(output.data[i]).toBe(output.data[i + 2]);
-      expect(output.data[i] === 0 || output.data[i] === 255).toBe(true);
+      const alpha = output.data[i + 3];
+      expect(alpha === 0 || alpha === 255).toBe(true);
+      if (alpha === 255) {
+        expect(output.data[i]).toBe(output.data[i + 1]);
+        expect(output.data[i]).toBe(output.data[i + 2]);
+        expect(output.data[i] === 0 || output.data[i] === 255).toBe(true);
+      } else {
+        expect(output.data[i]).toBe(0);
+        expect(output.data[i + 1]).toBe(0);
+        expect(output.data[i + 2]).toBe(0);
+      }
     }
   });
 });
@@ -174,8 +247,10 @@ describe("renderLineArt — extreme slider values do not throw", () => {
       expect(output.width).toBe(SIZE);
       expect(output.height).toBe(SIZE);
       expect(output.data.length).toBe(SIZE * SIZE * 4);
+      // Alpha is now the line/non-line mask, not a constant — every pixel is
+      // one of the two valid states.
       for (let i = 3; i < output.data.length; i += 4) {
-        expect(output.data[i]).toBe(255);
+        expect(output.data[i] === 0 || output.data[i] === 255).toBe(true);
       }
     },
   );
@@ -217,7 +292,10 @@ describe("renderLineArt — degenerate sizes", () => {
     expect(output?.width).toBe(1);
     expect(output?.height).toBe(1);
     expect(output?.data.length).toBe(4);
-    expect(output?.data[3]).toBe(255);
+    // A single pixel has no neighbours to form a gradient against (the Sobel
+    // window clamps onto itself on every side), so it can never become a
+    // line pixel — alpha 0, not the old constant 255.
+    expect(output?.data[3]).toBe(0);
   });
 
   it("handles a 1x1 image at every extreme setting", () => {

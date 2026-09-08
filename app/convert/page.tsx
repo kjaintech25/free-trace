@@ -38,6 +38,17 @@ import { usePhotoPicker } from "@/lib/usePhotoPicker";
 const DEBOUNCE_MS = 120;
 
 /**
+ * Preview-only backdrop colours (FTA-020). The engine now emits transparent
+ * non-line pixels — see the doc comment on `renderLineArt` in lib/edges.ts —
+ * so the on-screen preview must paint something opaque behind the line art
+ * or it disappears against this screen's own near-black background. Paper
+ * white normally; dark when inverted, so white lines stay visible. Neither
+ * colour is ever written into the exported PNG (see the paint effect below).
+ */
+const PREVIEW_BACKDROP = "#F2F2F0";
+const PREVIEW_BACKDROP_INVERTED = "#0B0B0C";
+
+/**
  * Where this screen's source came from, and how "Save" should behave.
  *
  * `retune`'s `thumbnail` is only ever populated by a "Choose a different
@@ -81,7 +92,14 @@ function ConvertScreen() {
   // is (re-)established, set only by a successful swap.
   const [sourceSwapped, setSourceSwapped] = useState(false);
 
+  // `canvasRef` holds ONLY the raw, transparent line-art pixels straight out
+  // of `putImageData` — nothing else is ever drawn onto it — because
+  // `handleSave` encodes the export PNG directly off of it (FTA-020: the
+  // export must not bake in a backdrop). `previewCanvasRef` is the one that
+  // is actually visible: it composites that same data over an opaque
+  // backdrop so the transparent lines don't vanish on screen.
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   // The pristine, never-transferred source pixels. A ref, not state: it never
   // needs to trigger a render on its own, only the settings/entry it is
   // derived alongside.
@@ -226,19 +244,27 @@ function ConvertScreen() {
   }, [settings, convert]);
 
   // -------------------------------------------------------------------------
-  // Paint the current line art. The canvas keeps showing the previous frame
-  // until a new one lands — never cleared while a conversion is in flight.
+  // Paint the current line art. Both canvases keep showing the previous
+  // frame until a new one lands — never cleared while a conversion is in
+  // flight.
+  //
+  // `canvasRef` (the data/export canvas) receives ONLY this one
+  // `putImageData` call — the raw, transparent RGBA the engine produced,
+  // untouched. `previewCanvasRef` (the visible one) is repainted from
+  // scratch every time: an opaque backdrop rect, then the data canvas drawn
+  // on top. The backdrop lives on the preview canvas only; it is never
+  // written to the data canvas `handleSave` exports from (FTA-020).
   // -------------------------------------------------------------------------
   useEffect(() => {
-    if (!lineArt || !canvasRef.current) return;
-    const canvas = canvasRef.current;
-    if (canvas.width !== lineArt.width) canvas.width = lineArt.width;
-    if (canvas.height !== lineArt.height) canvas.height = lineArt.height;
-    const ctx = canvas.getContext("2d");
+    if (!lineArt || !canvasRef.current || !previewCanvasRef.current) return;
+    const dataCanvas = canvasRef.current;
+    if (dataCanvas.width !== lineArt.width) dataCanvas.width = lineArt.width;
+    if (dataCanvas.height !== lineArt.height) dataCanvas.height = lineArt.height;
+    const dataCtx = dataCanvas.getContext("2d");
     // jsdom (the test environment) has no `ImageData` global at all; a real
     // browser always does. Guarding rather than importing a polyfill keeps
     // this file dependency-free for a gap that is purely a test-harness one.
-    if (!ctx || typeof ImageData === "undefined") return;
+    if (!dataCtx || typeof ImageData === "undefined") return;
     // `Uint8ClampedArray`'s buffer is typed `ArrayBufferLike` (it could be a
     // SharedArrayBuffer); re-wrapping guarantees a plain `ArrayBuffer`-backed
     // array, which is what `ImageData`'s constructor requires.
@@ -247,8 +273,17 @@ function ConvertScreen() {
       lineArt.width,
       lineArt.height,
     );
-    ctx.putImageData(imageData, 0, 0);
-  }, [lineArt]);
+    dataCtx.putImageData(imageData, 0, 0);
+
+    const previewCanvas = previewCanvasRef.current;
+    if (previewCanvas.width !== lineArt.width) previewCanvas.width = lineArt.width;
+    if (previewCanvas.height !== lineArt.height) previewCanvas.height = lineArt.height;
+    const previewCtx = previewCanvas.getContext("2d");
+    if (!previewCtx) return;
+    previewCtx.fillStyle = settings?.inverted ? PREVIEW_BACKDROP_INVERTED : PREVIEW_BACKDROP;
+    previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+    previewCtx.drawImage(dataCanvas, 0, 0);
+  }, [lineArt, settings?.inverted]);
 
   function updateSetting<K extends keyof LineArtSettings>(key: K, value: LineArtSettings[K]) {
     setSettings((prev) => (prev ? { ...prev, [key]: value } : prev));
@@ -423,7 +458,11 @@ function ConvertScreen() {
           onPointerCancel={() => setComparing(false)}
           onPointerLeave={() => setComparing(false)}
         >
-          <canvas ref={canvasRef} className="h-full w-full object-contain" />
+          {/* Data/export canvas: never displayed, holds only the raw
+              transparent line-art pixels `handleSave` encodes from
+              (FTA-020). */}
+          <canvas ref={canvasRef} data-slot="line-art-data" className="hidden" aria-hidden="true" />
+          <canvas ref={previewCanvasRef} className="h-full w-full object-contain" />
           {comparing && originalUrl && (
             // An object URL blob preview has no business going through
             // next/image's remote loader pipeline.
