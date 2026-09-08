@@ -13,6 +13,7 @@ Notes:
 
 ## Run log
 - 2026-09-08 08:26 ET — plan approved by Kush; Batch 0 started.
+- 2026-09-08 10:1x ET — T-06 merged into v1 (PR #4).
 - 2026-09-08 10:0x ET — T-04 merged into v1 (PR #5).
 - 2026-09-08 09:5x ET — T-03 merged into v1 (PR #3). Repo made public + main ruleset; preview auth wall off (Kush's rulings). Third builder (T-08) running.
 - 2026-09-08 08:51 ET — T-02 merged into v1 (PR #2). Lanes A and B dispatched in worktrees.
@@ -43,7 +44,13 @@ Checks: build ✅ typecheck ✅ lint ✅ test ✅ (64 tests) preview ✅
 Notes: lib/import.ts (createImageBitmap from-image, 4096px/25MB downscale, 400px thumb), lib/pendingImport.ts hand-off to /convert, components/AddPhotoButton.tsx on /. HEIC + EXIF are iPhone-only evidence.
 
 ## Lane A — T-05 library (FTA-006) IN PROGRESS
-## Lane B — T-06 edge engine (FTA-007) · T-07 convert (FTA-008) — TODO
+## T-06 — Line-art engine
+State: DONE
+Board: FTA-007 · Model: Opus · Branch: t-06-edge-engine · PR: #4 · Attempts: 1
+Checks: build ✅ typecheck ✅ lint ✅ test ✅ (49 + 2 opt-in perf) preview ✅
+Notes: lib/edges.ts pure pipeline + ranges; lib/edges.worker.ts + lib/edgesClient.ts (transfers buffers — INPUT IS DETACHED, keep a pristine copy); lib/image.ts downscale (untested, no canvas). 12MP median 239ms in Node (ESTIMATE). DECISIONS row 9.
+
+## Lane B — T-07 convert (FTA-008) IN PROGRESS
 ## Lane C — T-08 camera (FTA-009) · T-09 overlay (FTA-010) · T-14 harness (FTA-011) · T-10 gestures (FTA-012) · T-11 wake lock (FTA-013) — TODO
 ## Tail — T-12 PWA (FTA-014) · T-13 settings (FTA-015) · T-15 review packet (FTA-016) — TODO
 
