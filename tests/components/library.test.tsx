@@ -235,6 +235,19 @@ describe("Library — rename flow", () => {
   });
 });
 
+describe("Library — settings entry point", () => {
+  it("routes to /settings when the gear button is tapped", async () => {
+    listReferencesMock.mockResolvedValue({ ok: true, value: [] });
+
+    render(<Library />);
+    await screen.findByText("No references yet — add a photo to trace.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+
+    expect(push).toHaveBeenCalledWith("/settings");
+  });
+});
+
 describe("Library — re-tune routing", () => {
   it("routes to /convert?ref=<id> without building the convert screen", async () => {
     listReferencesMock.mockResolvedValue({
