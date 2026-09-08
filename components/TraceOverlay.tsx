@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import { useOverlayGestures } from "@/components/useOverlayGestures";
 import { toCssTransform, type OverlayTransform } from "@/lib/overlayTransform";
 
 export interface TraceOverlayProps {
@@ -14,6 +15,10 @@ export interface TraceOverlayProps {
   transform: OverlayTransform;
   /** Render light lines on dark, for drawing in a dark room. */
   inverted: boolean;
+  /** Freezes every gesture (SPEC §6.3). Session-only; never persisted. */
+  locked: boolean;
+  /** The gesture layer's only output — straight into TraceScreen's state. */
+  onTransformChange: (next: OverlayTransform) => void;
 }
 
 /**
@@ -41,7 +46,15 @@ export function TraceOverlay({
   opacity,
   transform,
   inverted,
+  locked,
+  onTransformChange,
 }: TraceOverlayProps) {
+  const { containerRef, handlers } = useOverlayGestures({
+    transform,
+    locked,
+    onTransformChange,
+  });
+
   // Created during render rather than in an effect, on purpose. The effect
   // form has to write the URL into state, and `react-hooks/set-state-in-effect`
   // rejects that (correctly — it cascades a second render, so the first paint
@@ -62,17 +75,35 @@ export function TraceOverlay({
 
   return (
     <div
+      ref={containerRef}
       data-slot="overlay"
       // z-10: above the video, below the camera failure panel and the control
       // bar (both of which must stay tappable).
       //
-      // pointer-events stay ON: T-10 attaches its Pointer Event handlers to
-      // this container, and gestures must act on the overlay, never the video.
+      // pointer-events stay ON: this container is where T-10's Pointer Event
+      // handlers live, and gestures must act on the overlay, never the video.
       className="absolute inset-0 z-10 flex items-center justify-center"
       // The whole state object, serialised. This is a read-only debug/verify
       // surface: the T-14 harness and the structural test both use it to prove
       // the rendered transform derives from exactly one object.
       data-transform={JSON.stringify(transform)}
+      // Rendered in both states rather than only when engaged, so a harness or
+      // a test can tell "unlocked" from "the attribute was never wired".
+      data-locked={locked ? "true" : "false"}
+      style={{
+        // The one line that stops iOS from panning/zooming the page instead of
+        // handing the gesture to us. Inline rather than a Tailwind class
+        // because it is load-bearing behaviour, not styling, and it is checked
+        // by name in the tests.
+        touchAction: "none",
+        // SPEC §7: no text selection and no long-press callout on the trace
+        // screen. `main` sets both too; repeating them here keeps the
+        // container correct if it is ever mounted somewhere else.
+        userSelect: "none",
+        WebkitUserSelect: "none",
+        WebkitTouchCallout: "none",
+      }}
+      {...handlers}
     >
       {
         /* eslint-disable-next-line @next/next/no-img-element -- next/image
