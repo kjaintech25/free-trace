@@ -114,7 +114,7 @@ beforeEach(() => {
   takePendingImportMock.mockReset();
   takePendingImportMock.mockReturnValue(null);
   readPreferencesMock.mockReset();
-  readPreferencesMock.mockResolvedValue({ defaultOpacity: 50, keepAwake: true });
+  readPreferencesMock.mockResolvedValue({ defaultOpacity: 50, keepAwake: true, cameraFacing: "environment" });
   getReferenceMock.mockReset();
   saveReferenceMock.mockReset();
   updateReferenceMock.mockReset();
@@ -313,7 +313,7 @@ describe("ConvertPage — save uses the Settings default opacity", () => {
       height: 100,
       thumbnail: makeThumbnailBlob(),
     });
-    readPreferencesMock.mockResolvedValue({ defaultOpacity: 30, keepAwake: true });
+    readPreferencesMock.mockResolvedValue({ defaultOpacity: 30, keepAwake: true, cameraFacing: "environment" });
     saveReferenceMock.mockResolvedValue({
       ok: true,
       value: {

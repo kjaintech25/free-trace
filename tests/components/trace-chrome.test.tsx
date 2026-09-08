@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IDLE_MS, TraceScreen } from "@/components/TraceScreen";
-import { getPreference, getReference, updateReference } from "@/lib/storage";
+import { getPreference, getReference, setPreference, updateReference } from "@/lib/storage";
 import type { Reference } from "@/lib/storage";
 
 /**
@@ -26,11 +26,13 @@ vi.mock("@/lib/storage", () => ({
   getReference: vi.fn(),
   updateReference: vi.fn(),
   getPreference: vi.fn(),
+  setPreference: vi.fn(),
 }));
 
 const getReferenceMock = vi.mocked(getReference);
 const updateReferenceMock = vi.mocked(updateReference);
 const getPreferenceMock = vi.mocked(getPreference);
+const setPreferenceMock = vi.mocked(setPreference);
 
 const createObjectURL = vi.fn<(blob: Blob) => string>();
 const revokeObjectURL = vi.fn<(url: string) => void>();
@@ -107,6 +109,8 @@ beforeEach(() => {
   // Default: no preference row set, so readPreferences() falls through to
   // its defaults (keepAwake: true) — the same default a fresh install has.
   getPreferenceMock.mockResolvedValue({ ok: true, value: undefined });
+  setPreferenceMock.mockReset();
+  setPreferenceMock.mockResolvedValue({ ok: true, value: undefined });
   createObjectURL.mockReset();
   createObjectURL.mockImplementation(() => "blob:free-trace/line-art");
   revokeObjectURL.mockReset();
@@ -328,6 +332,52 @@ describe("TraceScreen — wake lock (SPEC §6.3, §10 item 5, carried T-13)", ()
 
     expect(logged).not.toHaveBeenCalled();
     expect(screen.queryByText(/wake lock/i)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// flip camera (FTA-019)
+// ---------------------------------------------------------------------------
+
+describe("TraceScreen — Flip camera button", () => {
+  it("renders in the expanded bar, starting on the rear camera", async () => {
+    await renderScreen();
+
+    const button = screen.getByRole("button", { name: "Flip camera" });
+    expect(button).toBeTruthy();
+    expect(button.dataset.facing).toBe("environment");
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("toggles data-facing and persists the choice on tap", async () => {
+    await renderScreen();
+
+    const button = screen.getByRole("button", { name: "Flip camera" });
+    fireEvent.click(button);
+
+    expect(button.dataset.facing).toBe("user");
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+    expect(setPreferenceMock).toHaveBeenCalledWith("cameraFacing", "user");
+
+    fireEvent.click(button);
+
+    expect(button.dataset.facing).toBe("environment");
+    expect(setPreferenceMock).toHaveBeenCalledWith("cameraFacing", "environment");
+  });
+
+  it("starts on the front camera when that was the stored preference", async () => {
+    getPreferenceMock.mockImplementation(async (key: string) => {
+      if (key === "cameraFacing") return { ok: true, value: "user" };
+      return { ok: true, value: undefined };
+    });
+
+    await renderScreen();
+
+    const button = screen.getByRole("button", { name: "Flip camera" });
+    expect(button.dataset.facing).toBe("user");
+    expect(document.querySelector('[data-slot="camera"]')?.getAttribute("data-facing")).toBe(
+      "user",
+    );
   });
 });
 

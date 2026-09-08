@@ -179,6 +179,126 @@ describe("CameraFeed — failure states are never a black screen (SPEC §9)", ()
   });
 });
 
+describe("CameraFeed — flipping cameras while live (FTA-019)", () => {
+  it("stops the old tracks and starts a new stream when `facing` changes", async () => {
+    const rear = fakeStream("environment", 2);
+    const front = fakeStream("user");
+    const getUserMedia = vi
+      .fn()
+      .mockResolvedValueOnce(asMediaStream(rear))
+      .mockResolvedValueOnce(asMediaStream(front));
+    installGetUserMedia(getUserMedia);
+
+    const { rerender } = render(<CameraFeed facing="environment" />);
+    fireEvent.click(screen.getByRole("button", { name: "Start camera" }));
+    await waitFor(() => {
+      expect(getVideo().dataset.status).toBe("live");
+    });
+    expect(getVideo().dataset.facing).toBe("environment");
+
+    rerender(<CameraFeed facing="user" />);
+
+    await waitFor(() => {
+      expect(getVideo().dataset.facing).toBe("user");
+    });
+    expect(getVideo().dataset.status).toBe("live");
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    for (const track of rear.tracks) {
+      expect(track.stop).toHaveBeenCalledTimes(1);
+    }
+    expect(getVideo().srcObject).toBe(asMediaStream(front));
+  });
+
+  it("calls onResolvedFacing with the camera the browser actually handed back", async () => {
+    const front = fakeStream("user");
+    installGetUserMedia(vi.fn().mockResolvedValue(asMediaStream(front)));
+    const onResolvedFacing = vi.fn();
+
+    render(<CameraFeed facing="user" onResolvedFacing={onResolvedFacing} />);
+    fireEvent.click(screen.getByRole("button", { name: "Start camera" }));
+
+    await waitFor(() => {
+      expect(onResolvedFacing).toHaveBeenCalledWith("user");
+    });
+  });
+
+  it("mirrors the video only when the live camera is the front camera", async () => {
+    installGetUserMedia(vi.fn().mockResolvedValue(asMediaStream(fakeStream("user"))));
+
+    render(<CameraFeed facing="user" />);
+    fireEvent.click(screen.getByRole("button", { name: "Start camera" }));
+
+    await waitFor(() => {
+      expect(getVideo().dataset.status).toBe("live");
+    });
+    expect(getVideo().style.transform).toBe("scaleX(-1)");
+  });
+
+  it("does not mirror the video for the rear camera", async () => {
+    await startCamera(fakeStream("environment"));
+    expect(getVideo().style.transform).toBe("");
+  });
+
+  it("on a one-camera device, a failed flip restarts the previous camera and shows a brief notice instead of an error panel", async () => {
+    const rear = fakeStream("environment");
+    const getUserMedia = vi
+      .fn()
+      .mockResolvedValueOnce(asMediaStream(rear))
+      .mockRejectedValueOnce(
+        new DOMException("no front camera", "OverconstrainedError"),
+      )
+      .mockResolvedValueOnce(asMediaStream(fakeStream("environment")));
+    installGetUserMedia(getUserMedia);
+
+    const { rerender } = render(<CameraFeed facing="environment" />);
+    fireEvent.click(screen.getByRole("button", { name: "Start camera" }));
+    await waitFor(() => {
+      expect(getVideo().dataset.status).toBe("live");
+    });
+
+    rerender(<CameraFeed facing="user" />);
+
+    await waitFor(() => {
+      expect(getUserMedia).toHaveBeenCalledTimes(3);
+    });
+    // Back to live on the rear camera, not a failure panel.
+    expect(getVideo().dataset.status).toBe("live");
+    expect(getVideo().dataset.facing).toBe("environment");
+    expect(screen.queryByText("Camera unavailable")).toBeNull();
+    expect(screen.getByText("Only one camera available")).toBeTruthy();
+  });
+
+  it("the one-camera notice clears itself after a few seconds", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const getUserMedia = vi
+      .fn()
+      .mockResolvedValueOnce(asMediaStream(fakeStream("environment")))
+      .mockRejectedValueOnce(
+        new DOMException("no front camera", "NotFoundError"),
+      )
+      .mockResolvedValueOnce(asMediaStream(fakeStream("environment")));
+    installGetUserMedia(getUserMedia);
+
+    const { rerender } = render(<CameraFeed facing="environment" />);
+    fireEvent.click(screen.getByRole("button", { name: "Start camera" }));
+    await waitFor(() => {
+      expect(getVideo().dataset.status).toBe("live");
+    });
+
+    rerender(<CameraFeed facing="user" />);
+    await waitFor(() => {
+      expect(screen.getByText("Only one camera available")).toBeTruthy();
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(3000);
+    });
+
+    expect(screen.queryByText("Only one camera available")).toBeNull();
+    vi.useRealTimers();
+  });
+});
+
 describe("CameraFeed — the camera is handed back", () => {
   it("stops every track on unmount", async () => {
     const stream = fakeStream("environment", 2);

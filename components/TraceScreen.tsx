@@ -7,12 +7,17 @@ import { TraceControls } from "@/components/TraceControls";
 import { TraceOverlay } from "@/components/TraceOverlay";
 import { Button } from "@/components/ui";
 import { useWakeLock } from "@/components/useWakeLock";
+import type { CameraFacing } from "@/lib/camera";
 import {
   clampTransform,
   IDENTITY_TRANSFORM,
   type OverlayTransform,
 } from "@/lib/overlayTransform";
-import { readPreferences } from "@/lib/preferences";
+import {
+  DEFAULT_CAMERA_FACING_VALUE,
+  readPreferences,
+  writePreference,
+} from "@/lib/preferences";
 import {
   getReference,
   updateReference,
@@ -159,10 +164,20 @@ export function TraceScreen({ id }: { id: string }) {
   // resolves `true` on its own when nothing is stored (SPEC's stated
   // default), so nothing is lost by waiting for it here.
   const [keepAwake, setKeepAwake] = useState<boolean | null>(null);
+  // FTA-019: which camera the feed opens with. Starts at the documented
+  // default and is corrected by the same preferences read as keepAwake above
+  // — Trace is the only screen that reads this key; Trace itself is also the
+  // only screen that writes it, on flip (below).
+  const [cameraFacing, setCameraFacing] = useState<CameraFacing>(
+    DEFAULT_CAMERA_FACING_VALUE,
+  );
   useEffect(() => {
     let cancelled = false;
     void readPreferences().then((preferences) => {
-      if (!cancelled) setKeepAwake(preferences.keepAwake);
+      if (!cancelled) {
+        setKeepAwake(preferences.keepAwake);
+        setCameraFacing(preferences.cameraFacing);
+      }
     });
     return () => {
       cancelled = true;
@@ -280,6 +295,12 @@ export function TraceScreen({ id }: { id: string }) {
     setLocked((previous) => !previous);
   }, []);
 
+  const handleCameraFlip = useCallback(() => {
+    const next: CameraFacing = cameraFacing === "environment" ? "user" : "environment";
+    setCameraFacing(next);
+    void writePreference("cameraFacing", next);
+  }, [cameraFacing]);
+
   // A broken link must never be a black screen (SPEC §9). No camera is started
   // here — there is nothing to trace.
   if (load.status === "missing") {
@@ -315,7 +336,7 @@ export function TraceScreen({ id }: { id: string }) {
       onInputCapture={handleIdleReset}
       onChangeCapture={handleIdleReset}
     >
-      <CameraFeed />
+      <CameraFeed facing={cameraFacing} />
 
       {load.status === "ready" ? (
         <>
@@ -337,6 +358,8 @@ export function TraceScreen({ id }: { id: string }) {
             onFlipToggle={handleFlipToggle}
             inverted={inverted}
             onInvertToggle={handleInvertToggle}
+            cameraFacing={cameraFacing}
+            onCameraFlip={handleCameraFlip}
             collapsed={!chromeExpanded}
           />
         </>

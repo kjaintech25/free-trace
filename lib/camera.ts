@@ -27,8 +27,19 @@ export type CameraFailure =
   | { status: "denied" }
   | { status: "unavailable"; reason: UnavailableReason };
 
+/** Which physical camera is requested/resolved. Mirrors the W3C `facingMode`
+ *  values Free Trace actually uses — no `left`/`right`. */
+export type CameraFacing = "environment" | "user";
+
 export type CameraStartResult =
-  | { ok: true; stream: MediaStream; usedExactFallback: boolean }
+  | {
+      ok: true;
+      stream: MediaStream;
+      usedExactFallback: boolean;
+      /** From `track.getSettings().facingMode`; `"unknown"` when the browser
+       *  did not report one (some do not). */
+      resolvedFacing: CameraFacing | "unknown";
+    }
   | { ok: false; failure: CameraFailure };
 
 /** SPEC §10.2: ask for the rear camera as a *preference* first. `ideal` never
@@ -42,6 +53,17 @@ export const IDEAL_ENVIRONMENT: MediaStreamConstraints = {
  *  `exact` *can* reject — that rejection is handled, never surfaced. */
 export const EXACT_ENVIRONMENT: MediaStreamConstraints = {
   video: { facingMode: { exact: "environment" } },
+  audio: false,
+};
+
+/** Symmetric pair for the front (selfie) camera — same ideal→exact shape. */
+export const IDEAL_USER: MediaStreamConstraints = {
+  video: { facingMode: { ideal: "user" } },
+  audio: false,
+};
+
+export const EXACT_USER: MediaStreamConstraints = {
+  video: { facingMode: { exact: "user" } },
   audio: false,
 };
 
@@ -101,6 +123,31 @@ export function isFrontFacing(stream: MediaStream): boolean {
   return track.getSettings().facingMode === "user";
 }
 
+/**
+ * True only when the browser told us it gave us the *other* camera than the
+ * one we asked for. An unreported (or unreadable) `facingMode` is treated as
+ * "close enough" — same policy `isFrontFacing` already used for the
+ * environment case, generalised to both directions so `startCamera` behaves
+ * identically for 'environment' as `startRearCamera` always did.
+ */
+function isWrongFacing(stream: MediaStream, desired: CameraFacing): boolean {
+  const track = stream.getVideoTracks()[0];
+  if (!track || typeof track.getSettings !== "function") return false;
+  const opposite: CameraFacing = desired === "environment" ? "user" : "environment";
+  return track.getSettings().facingMode === opposite;
+}
+
+/** From `track.getSettings().facingMode`, narrowed to the two values Free
+ *  Trace cares about; anything else (including unset) is `"unknown"`. */
+function resolveFacingFromStream(stream: MediaStream): CameraFacing | "unknown" {
+  const track = stream.getVideoTracks()[0];
+  if (!track || typeof track.getSettings !== "function") return "unknown";
+  const facingMode = track.getSettings().facingMode;
+  return facingMode === "user" || facingMode === "environment"
+    ? facingMode
+    : "unknown";
+}
+
 /** Release the hardware. Safe to call with null and safe to call twice. */
 export function stopStream(stream: MediaStream | null | undefined): void {
   if (!stream) return;
@@ -129,17 +176,22 @@ export function watchStreamEnd(
 }
 
 /**
- * Acquire the rear camera, with the SPEC §10.2 fallback.
+ * Acquire a camera, with the SPEC §10.2 ideal→exact fallback, generalised
+ * to either physical camera.
  *
- * 1. Ask with `ideal: 'environment'`.
- * 2. If the resolved track reports `facingMode: 'user'`, ask once more with
- *    `exact: 'environment'`.
- * 3. If that second request is refused, keep the first stream. The user gets a
- *    working (if front-facing) feed rather than nothing.
+ * 1. Ask with `ideal: <facing>`.
+ * 2. If the resolved track reports the *other* camera, ask once more with
+ *    `exact: <facing>`.
+ * 3. If that second request is refused, keep the first stream. The user gets
+ *    a working (if wrong-facing) feed rather than nothing.
  *
  * Never throws: failures come back as a `CameraFailure` the UI has copy for.
+ * For `facing: 'environment'` this is byte-for-byte the same request shapes
+ * and fallback behaviour `startRearCamera` always had.
  */
-export async function startRearCamera(): Promise<CameraStartResult> {
+export async function startCamera(
+  facing: CameraFacing,
+): Promise<CameraStartResult> {
   const getUserMedia = resolveGetUserMedia();
   if (!getUserMedia) {
     return {
@@ -148,26 +200,51 @@ export async function startRearCamera(): Promise<CameraStartResult> {
     };
   }
 
+  const idealConstraints =
+    facing === "environment" ? IDEAL_ENVIRONMENT : IDEAL_USER;
+  const exactConstraints =
+    facing === "environment" ? EXACT_ENVIRONMENT : EXACT_USER;
+
   let stream: MediaStream;
   try {
-    stream = await getUserMedia(IDEAL_ENVIRONMENT);
+    stream = await getUserMedia(idealConstraints);
   } catch (error) {
     return { ok: false, failure: classifyCameraError(error) };
   }
 
-  if (!isFrontFacing(stream)) {
-    return { ok: true, stream, usedExactFallback: false };
+  if (!isWrongFacing(stream, facing)) {
+    return {
+      ok: true,
+      stream,
+      usedExactFallback: false,
+      resolvedFacing: resolveFacingFromStream(stream),
+    };
   }
 
   try {
-    const exactStream = await getUserMedia(EXACT_ENVIRONMENT);
+    const exactStream = await getUserMedia(exactConstraints);
     stopStream(stream);
-    return { ok: true, stream: exactStream, usedExactFallback: true };
+    return {
+      ok: true,
+      stream: exactStream,
+      usedExactFallback: true,
+      resolvedFacing: resolveFacingFromStream(exactStream),
+    };
   } catch {
-    // No rear camera the device is willing to give us under `exact`. Keeping
-    // the front-facing stream is strictly better than a dead screen.
-    return { ok: true, stream, usedExactFallback: false };
+    // No camera the device is willing to give us under `exact`. Keeping the
+    // wrong-facing stream is strictly better than a dead screen.
+    return {
+      ok: true,
+      stream,
+      usedExactFallback: false,
+      resolvedFacing: resolveFacingFromStream(stream),
+    };
   }
+}
+
+/** Thin alias kept for callers and tests written against the rear-only API. */
+export async function startRearCamera(): Promise<CameraStartResult> {
+  return startCamera("environment");
 }
 
 /**
