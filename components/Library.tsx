@@ -135,7 +135,12 @@ export function Library() {
         className="flex-1 overflow-y-auto px-4 pt-[calc(1.5rem+var(--safe-top,0px))]"
         style={{ paddingBottom: hasItems ? "6rem" : "1.5rem" }}
       >
-        <h1 className="mb-4 font-sans text-2xl">Free Trace</h1>
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="font-sans text-2xl">Free Trace</h1>
+          <IconButton aria-label="Settings" onClick={() => router.push("/settings")}>
+            ⚙
+          </IconButton>
+        </div>
 
         {loadError && (
           <p className="mb-4 font-sans text-sm text-text-muted">{loadError}</p>
