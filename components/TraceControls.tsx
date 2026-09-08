@@ -2,6 +2,7 @@
 
 import { CloseTraceButton } from "@/components/CloseTraceButton";
 import { IconButton, Slider } from "@/components/ui";
+import type { CameraFacing } from "@/lib/camera";
 
 export interface TraceControlsProps {
   /** 0–100. */
@@ -14,6 +15,9 @@ export interface TraceControlsProps {
   onFlipToggle: () => void;
   inverted: boolean;
   onInvertToggle: () => void;
+  /** Which physical camera is active (FTA-019). */
+  cameraFacing: CameraFacing;
+  onCameraFlip: () => void;
   /**
    * Collapsed to a single small pill after ~4s idle (SPEC §6.3, T-11). The
    * idle timer itself lives in TraceScreen — this component only renders
@@ -63,6 +67,20 @@ function InvertIcon() {
   );
 }
 
+/** Camera body with two rotate arrows — kept simple, not literally a photo
+ *  of front vs. rear. */
+function CameraFlipIcon() {
+  return (
+    <svg {...ICON} aria-hidden="true">
+      <rect x="3.5" y="7.5" width="17" height="12" rx="2.5" />
+      <circle cx="12" cy="13.5" r="3.25" />
+      <path d="M8.5 7.5 10 5h4l1.5 2.5" />
+      <path d="M17.5 3.5a5 5 0 0 1 1.9 2.7" />
+      <path d="M6.5 3.5a5 5 0 0 0-1.9 2.7" />
+    </svg>
+  );
+}
+
 /**
  * The floating control bar (SPEC §6.3).
  *
@@ -98,6 +116,8 @@ export function TraceControls({
   onFlipToggle,
   inverted,
   onInvertToggle,
+  cameraFacing,
+  onCameraFlip,
   collapsed,
 }: TraceControlsProps) {
   return (
@@ -146,6 +166,15 @@ export function TraceControls({
               tabIndex={collapsed ? -1 : undefined}
             >
               <InvertIcon />
+            </IconButton>
+            <IconButton
+              aria-label="Flip camera"
+              active={cameraFacing === "user"}
+              onClick={onCameraFlip}
+              tabIndex={collapsed ? -1 : undefined}
+              data-facing={cameraFacing}
+            >
+              <CameraFlipIcon />
             </IconButton>
             <CloseTraceButton />
           </div>

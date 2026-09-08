@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getPreference } from "@/lib/storage";
 import {
+  DEFAULT_CAMERA_FACING_VALUE,
   DEFAULT_KEEP_AWAKE_VALUE,
   DEFAULT_OPACITY_VALUE,
+  PREF_CAMERA_FACING,
   PREF_DEFAULT_OPACITY,
   PREF_KEEP_AWAKE,
   readPreferences,
@@ -34,6 +36,7 @@ describe("readPreferences — both keys unset", () => {
     expect(prefs).toEqual({
       defaultOpacity: DEFAULT_OPACITY_VALUE,
       keepAwake: DEFAULT_KEEP_AWAKE_VALUE,
+      cameraFacing: DEFAULT_CAMERA_FACING_VALUE,
     });
   });
 });
@@ -50,6 +53,7 @@ describe("readPreferences — storage failure", () => {
     expect(prefs).toEqual({
       defaultOpacity: DEFAULT_OPACITY_VALUE,
       keepAwake: DEFAULT_KEEP_AWAKE_VALUE,
+      cameraFacing: DEFAULT_CAMERA_FACING_VALUE,
     });
   });
 });
@@ -59,11 +63,16 @@ describe("readPreferences — stored values present", () => {
     getPreferenceMock.mockImplementation(async (key: string) => {
       if (key === PREF_DEFAULT_OPACITY) return { ok: true, value: 30 };
       if (key === PREF_KEEP_AWAKE) return { ok: true, value: false };
+      if (key === PREF_CAMERA_FACING) return { ok: true, value: "user" };
       throw new Error(`unexpected key ${key}`);
     });
 
     const prefs = await readPreferences();
 
-    expect(prefs).toEqual({ defaultOpacity: 30, keepAwake: false });
+    expect(prefs).toEqual({
+      defaultOpacity: 30,
+      keepAwake: false,
+      cameraFacing: "user",
+    });
   });
 });

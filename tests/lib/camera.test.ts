@@ -5,6 +5,7 @@ import {
   isFrontFacing,
   rememberAutoStart,
   shouldAutoStart,
+  startCamera,
   startRearCamera,
   stopStream,
   watchStreamEnd,
@@ -17,6 +18,8 @@ import {
 
 const IDEAL = { video: { facingMode: { ideal: "environment" } }, audio: false };
 const EXACT = { video: { facingMode: { exact: "environment" } }, audio: false };
+const IDEAL_USER = { video: { facingMode: { ideal: "user" } }, audio: false };
+const EXACT_USER = { video: { facingMode: { exact: "user" } }, audio: false };
 
 beforeEach(() => {
   window.sessionStorage.clear();
@@ -142,6 +145,88 @@ describe("startRearCamera — failure mapping", () => {
       ok: false,
       failure: { status: "unavailable", reason: "in-use" },
     });
+  });
+});
+
+describe("startCamera('user') — request shape and resolvedFacing (FTA-019)", () => {
+  it("asks for the front camera with facingMode ideal user and no audio", async () => {
+    const stream = fakeStream("user");
+    const getUserMedia = vi.fn().mockResolvedValue(asMediaStream(stream));
+    installGetUserMedia(getUserMedia);
+
+    const result = await startCamera("user");
+
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    expect(getUserMedia).toHaveBeenCalledWith(IDEAL_USER);
+    if (!result.ok) throw new Error("expected a stream");
+    expect(result.stream).toBe(asMediaStream(stream));
+    expect(result.usedExactFallback).toBe(false);
+    expect(result.resolvedFacing).toBe("user");
+  });
+
+  it("retries with exact: user when the rear camera came back, and reports the retried facing", async () => {
+    const rear = fakeStream("environment");
+    const front = fakeStream("user");
+    const getUserMedia = vi
+      .fn()
+      .mockResolvedValueOnce(asMediaStream(rear))
+      .mockResolvedValueOnce(asMediaStream(front));
+    installGetUserMedia(getUserMedia);
+
+    const result = await startCamera("user");
+
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    expect(getUserMedia).toHaveBeenNthCalledWith(1, IDEAL_USER);
+    expect(getUserMedia).toHaveBeenNthCalledWith(2, EXACT_USER);
+    if (!result.ok) throw new Error("expected a stream");
+    expect(result.stream).toBe(asMediaStream(front));
+    expect(result.usedExactFallback).toBe(true);
+    expect(result.resolvedFacing).toBe("user");
+    expect(rear.tracks[0].stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the first (wrong-facing) stream when the exact retry is rejected", async () => {
+    const rear = fakeStream("environment");
+    const getUserMedia = vi
+      .fn()
+      .mockResolvedValueOnce(asMediaStream(rear))
+      .mockRejectedValueOnce(
+        new DOMException("no front camera", "OverconstrainedError"),
+      );
+    installGetUserMedia(getUserMedia);
+
+    const result = await startCamera("user");
+
+    if (!result.ok) throw new Error("expected the first stream to be kept");
+    expect(result.stream).toBe(asMediaStream(rear));
+    expect(result.usedExactFallback).toBe(false);
+    expect(result.resolvedFacing).toBe("environment");
+    expect(rear.tracks[0].stop).not.toHaveBeenCalled();
+  });
+
+  it("reports resolvedFacing 'unknown' when the browser reports no facingMode at all", async () => {
+    installGetUserMedia(
+      vi.fn().mockResolvedValue(asMediaStream(fakeStream(undefined))),
+    );
+
+    const result = await startCamera("environment");
+
+    if (!result.ok) throw new Error("expected a stream");
+    expect(result.resolvedFacing).toBe("unknown");
+  });
+});
+
+describe("startRearCamera stays a thin alias for startCamera('environment')", () => {
+  it("makes the same single ideal-environment request", async () => {
+    const stream = fakeStream("environment");
+    const getUserMedia = vi.fn().mockResolvedValue(asMediaStream(stream));
+    installGetUserMedia(getUserMedia);
+
+    const result = await startRearCamera();
+
+    expect(getUserMedia).toHaveBeenCalledWith(IDEAL);
+    if (!result.ok) throw new Error("expected a stream");
+    expect(result.resolvedFacing).toBe("environment");
   });
 });
 

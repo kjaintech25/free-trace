@@ -11,20 +11,27 @@
  */
 
 import { getPreference, setPreference } from "@/lib/storage";
+import type { CameraFacing } from "@/lib/camera";
 
 /** Default opacity for a newly-converted reference, 0–100 (SPEC §6.4). */
 export const PREF_DEFAULT_OPACITY = "defaultOpacity";
 /** Whether the Trace screen should hold the Screen Wake Lock (SPEC §6.4, T-11). */
 export const PREF_KEEP_AWAKE = "keepAwake";
+/** Which camera the Trace screen opens with (FTA-019). Session/device-local —
+ *  not part of the reference record, same as `flipX`. */
+export const PREF_CAMERA_FACING = "cameraFacing";
 
 export const DEFAULT_OPACITY_VALUE = 50;
 export const DEFAULT_KEEP_AWAKE_VALUE = true;
+export const DEFAULT_CAMERA_FACING_VALUE: CameraFacing = "environment";
 
 export interface Preferences {
   /** 0–100. Defaults to 50 when unset. */
   defaultOpacity: number;
   /** Defaults to true when unset. */
   keepAwake: boolean;
+  /** Defaults to 'environment' (rear) when unset. */
+  cameraFacing: CameraFacing;
 }
 
 /**
@@ -37,9 +44,10 @@ export interface Preferences {
  * `getPreference` directly instead.
  */
 export async function readPreferences(): Promise<Preferences> {
-  const [opacityResult, keepAwakeResult] = await Promise.all([
+  const [opacityResult, keepAwakeResult, cameraFacingResult] = await Promise.all([
     getPreference<number>(PREF_DEFAULT_OPACITY),
     getPreference<boolean>(PREF_KEEP_AWAKE),
+    getPreference<CameraFacing>(PREF_CAMERA_FACING),
   ]);
 
   const defaultOpacity =
@@ -52,7 +60,12 @@ export async function readPreferences(): Promise<Preferences> {
       ? keepAwakeResult.value
       : DEFAULT_KEEP_AWAKE_VALUE;
 
-  return { defaultOpacity, keepAwake };
+  const cameraFacing =
+    cameraFacingResult.ok && cameraFacingResult.value !== undefined
+      ? cameraFacingResult.value
+      : DEFAULT_CAMERA_FACING_VALUE;
+
+  return { defaultOpacity, keepAwake, cameraFacing };
 }
 
 /**
@@ -60,10 +73,15 @@ export async function readPreferences(): Promise<Preferences> {
  * `setPreference` directly) so every write goes through the same typed key
  * names as `readPreferences` and a future key rename only touches this file.
  */
+const STORAGE_KEY: Record<keyof Preferences, string> = {
+  defaultOpacity: PREF_DEFAULT_OPACITY,
+  keepAwake: PREF_KEEP_AWAKE,
+  cameraFacing: PREF_CAMERA_FACING,
+};
+
 export function writePreference<K extends keyof Preferences>(
   key: K,
   value: Preferences[K],
 ) {
-  const storageKey = key === "defaultOpacity" ? PREF_DEFAULT_OPACITY : PREF_KEEP_AWAKE;
-  return setPreference(storageKey, value);
+  return setPreference(STORAGE_KEY[key], value);
 }

@@ -2,7 +2,12 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Settings } from "@/components/Settings";
 import { getPreference, setPreference, clearAll } from "@/lib/storage";
-import { PREF_DEFAULT_OPACITY, PREF_KEEP_AWAKE } from "@/lib/preferences";
+import {
+  DEFAULT_CAMERA_FACING_VALUE,
+  PREF_CAMERA_FACING,
+  PREF_DEFAULT_OPACITY,
+  PREF_KEEP_AWAKE,
+} from "@/lib/preferences";
 
 const push = vi.fn();
 
@@ -30,6 +35,7 @@ function mockPrefs(opacity: number, keepAwake: boolean) {
   getPreferenceMock.mockImplementation(async (key: string) => {
     if (key === PREF_DEFAULT_OPACITY) return { ok: true, value: opacity };
     if (key === PREF_KEEP_AWAKE) return { ok: true, value: keepAwake };
+    if (key === PREF_CAMERA_FACING) return { ok: true, value: DEFAULT_CAMERA_FACING_VALUE };
     throw new Error(`unexpected key ${key}`);
   });
 }
