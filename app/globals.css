@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+/* Free Trace — dark, quiet, instrument-like. Dark mode only, by design:
+   there is no light theme and no prefers-color-scheme block anywhere
+   (SPEC §7). */
+
+:root {
+  --bg: #0b0b0c; /* app background */
+  --surface: #1a1a1d; /* control bars, cards, sheets */
+  --accent: #e8a33d; /* active slider fill, engaged lock state, primary actions */
+  --text: #f2f2f0; /* primary text */
+  --text-muted: #87878c; /* secondary/inactive text */
+
+  /* Safe-area insets, available globally so any screen can pad against the
+     notch, Dynamic Island and home indicator (SPEC §7 iOS). */
+  --safe-top: env(safe-area-inset-top);
+  --safe-right: env(safe-area-inset-right);
+  --safe-bottom: env(safe-area-inset-bottom);
+  --safe-left: env(safe-area-inset-left);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-accent: var(--accent);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+
+  /* Driving Tailwind's own --font-sans/--font-mono is what makes preflight
+     apply Geist to <html>; a custom name here would not be picked up. */
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+html {
+  background: var(--bg);
+  /* iOS: keep the background dark behind the safe areas rather than letting
+     a light system chrome show through. */
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Numerals (opacity %, zoom %) are monospace so a changing readout does not
+   jitter the layout (SPEC §7). */
+.numeral {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Focus ring — accent, consistent across every interactive element. */
+:where(button, a, input, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
