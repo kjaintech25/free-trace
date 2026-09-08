@@ -13,6 +13,7 @@ Notes:
 
 ## Run log
 - 2026-09-08 08:26 ET — plan approved by Kush; Batch 0 started.
+- 2026-09-08 11:1x ET — T-09 merged into v1 (PR #11). T-14 + T-10 dispatched in parallel.
 - 2026-09-08 10:5x ET — FTA-017 polish (default opacity wired into convert save) merged, PR #10.
 - 2026-09-08 10:5x ET — T-13 merged into v1 (PR #9).
 - 2026-09-08 10:4x ET — T-07 merged into v1 (PR #8); lane B complete. T-12 pulled forward into the freed slot.
@@ -80,6 +81,12 @@ Board: FTA-009 · Model: Opus · Branch: t-08-camera-feed · PR: #6 · Attempts:
 Checks: build ✅ typecheck ✅ lint ✅ test ✅ (24 new) preview ✅ · harness screenshot: pending T-14
 Notes: lib/camera.ts (ideal→exact fallback, typed failures), components/CameraFeed.tsx (6 states, Start-camera tap, sessionStorage auto-start, stop on unmount/pagehide), app/trace/[id]/page.tsx with <div data-slot="overlay"> at z-10; failure panel + close at z-20. ⚠️ /trace/[id] builds as a DYNAMIC route (ƒ) — T-12's service worker needs a navigation fallback so it works offline.
 
-## Lane C — T-09 overlay (FTA-010) IN PROGRESS · T-14 harness (FTA-011) · T-10 gestures (FTA-012) · T-11 wake lock (FTA-013) — TODO
+## T-09 — Overlay and opacity
+State: DONE
+Board: FTA-010 · Model: Opus · Branch: t-09-overlay · PR: #11 · Attempts: 1
+Checks: build ✅ typecheck ✅ lint ✅ test ✅ (167 on branch) preview ✅ · harness screenshot: pending T-14
+Notes: lib/overlayTransform.ts (single transform state; clampTransform 0.1–20, ±Infinity → previous), components/TraceOverlay.tsx (img, z-10, invert via CSS filter, data-transform attr), TraceControls.tsx (z-30 pill: opacity slider + lock/flip/invert/close), TraceScreen.tsx (400ms persist debounce). Close button moved from top-right into the bar per §6.3. backdrop-blur-md on the bar is the first thing to drop if the preview stutters.
+
+## Lane C (parallel on Kush's ask) — T-14 harness (FTA-011) IN PROGRESS [wt-lane-c] · T-10 gestures (FTA-012) IN PROGRESS [wt-lane-a] · T-11 wake lock (FTA-013) TODO
 ## Tail — T-15 review packet (FTA-016) — TODO
 
