@@ -13,6 +13,7 @@ Notes:
 
 ## Run log
 - 2026-09-08 08:26 ET — plan approved by Kush; Batch 0 started.
+- 2026-09-08 10:4x ET — T-07 merged into v1 (PR #8); lane B complete. T-12 pulled forward into the freed slot.
 - 2026-09-08 10:3x ET — T-05 merged into v1 (PR #7); lane A complete. T-13 pulled forward into the freed slot.
 - 2026-09-08 10:2x ET — T-08 merged into v1 (PR #6).
 - 2026-09-08 10:1x ET — T-06 merged into v1 (PR #4).
@@ -60,7 +61,15 @@ Board: FTA-007 · Model: Opus · Branch: t-06-edge-engine · PR: #4 · Attempts:
 Checks: build ✅ typecheck ✅ lint ✅ test ✅ (49 + 2 opt-in perf) preview ✅
 Notes: lib/edges.ts pure pipeline + ranges; lib/edges.worker.ts + lib/edgesClient.ts (transfers buffers — INPUT IS DETACHED, keep a pristine copy); lib/image.ts downscale (untested, no canvas). 12MP median 239ms in Node (ESTIMATE). DECISIONS row 9.
 
-## Lane B — T-07 convert (FTA-008) IN PROGRESS
+## T-07 — Convert screen
+State: DONE
+Board: FTA-008 · Model: Sonnet · Branch: t-07-convert-screen · PR: #8 · Attempts: 1
+Checks: build ✅ typecheck ✅ lint ✅ test ✅ (111 on branch) preview ✅
+Notes: app/convert/page.tsx — pending-import + ?ref re-tune paths, 4 controls, 120ms debounce, press-and-hold compare (touch-action none), PNG via canvas.toBlob, save → /trace/[id]. Worker chunk confirmed emitted (turbopack-worker-*.js). Lane B COMPLETE.
+
+## T-12 — PWA manifest, icons, offline service worker (pulled forward; shell routes exist, trace screen still evolving)
+State: IN PROGRESS
+Board: FTA-014 · Model: Opus · Branch: t-12-pwa · PR: · Attempts: 1
 ## T-08 — Camera feed
 State: DONE
 Board: FTA-009 · Model: Opus · Branch: t-08-camera-feed · PR: #6 · Attempts: 1
@@ -68,5 +77,5 @@ Checks: build ✅ typecheck ✅ lint ✅ test ✅ (24 new) preview ✅ · harnes
 Notes: lib/camera.ts (ideal→exact fallback, typed failures), components/CameraFeed.tsx (6 states, Start-camera tap, sessionStorage auto-start, stop on unmount/pagehide), app/trace/[id]/page.tsx with <div data-slot="overlay"> at z-10; failure panel + close at z-20. ⚠️ /trace/[id] builds as a DYNAMIC route (ƒ) — T-12's service worker needs a navigation fallback so it works offline.
 
 ## Lane C — T-09 overlay (FTA-010) IN PROGRESS · T-14 harness (FTA-011) · T-10 gestures (FTA-012) · T-11 wake lock (FTA-013) — TODO
-## Tail — T-12 PWA (FTA-014) · T-15 review packet (FTA-016) — TODO
+## Tail — T-15 review packet (FTA-016) — TODO
 
