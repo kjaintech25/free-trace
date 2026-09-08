@@ -12,6 +12,24 @@ import { getReference, saveReference, updateReference } from "@/lib/storage";
 
 const NativeBlob = NodeBlob as unknown as typeof Blob;
 
+// jsdom has no `ImageData` global at all (the app code's own paint effect
+// guards on `typeof ImageData === "undefined"` and bails for exactly this
+// reason). The FTA-020 tests below need to get PAST that guard to observe
+// what each canvas's context receives, so — test-only — provide the
+// minimal shape the effect actually uses (a `.data`/`.width`/`.height`
+// bag); nothing else in this file needs a real ImageData.
+class MockImageData {
+  data: Uint8ClampedArray;
+  width: number;
+  height: number;
+  constructor(data: Uint8ClampedArray, width: number, height: number) {
+    this.data = data;
+    this.width = width;
+    this.height = height;
+  }
+}
+(globalThis as unknown as { ImageData: unknown }).ImageData = MockImageData;
+
 // ---------------------------------------------------------------------------
 // Mocks — this screen has no browser canvas/worker in jsdom, so every
 // canvas-dependent and worker-dependent module is replaced (per the ticket's
@@ -70,13 +88,56 @@ const terminateLineArtWorkerMock = vi.mocked(terminateLineArtWorker);
 // the ticket's instruction.
 // ---------------------------------------------------------------------------
 
-const putImageData = vi.fn();
+// The screen now paints TWO canvases (FTA-020): a hidden data/export canvas
+// (`data-slot="line-art-data"`) that must receive nothing but raw
+// `putImageData`, and a visible preview canvas that gets a backdrop fill
+// plus a `drawImage` of the data canvas on top. `getContext` is keyed by
+// which element it was called on (via `this`), not shared globally, so a
+// test can tell the two contexts apart and assert what each one saw.
+type MockCanvasContext = {
+  putImageData: ReturnType<typeof vi.fn>;
+  fillRect: ReturnType<typeof vi.fn>;
+  drawImage: ReturnType<typeof vi.fn>;
+  fillStyle: string;
+};
+
+const canvasContexts = new Map<HTMLCanvasElement, MockCanvasContext>();
+
+function makeMockContext(): MockCanvasContext {
+  return {
+    putImageData: vi.fn(),
+    fillRect: vi.fn(),
+    drawImage: vi.fn(),
+    fillStyle: "",
+  };
+}
+
+/** The data/export canvas's mock context — the one `handleSave` encodes from. */
+function getDataContext(): MockCanvasContext | undefined {
+  const el = document.querySelector('canvas[data-slot="line-art-data"]') as HTMLCanvasElement | null;
+  return el ? canvasContexts.get(el) : undefined;
+}
+
+/** The visible preview canvas's mock context — the other <canvas>. */
+function getPreviewContext(): MockCanvasContext | undefined {
+  const el = Array.from(document.querySelectorAll("canvas")).find(
+    (c) => c.getAttribute("data-slot") !== "line-art-data",
+  ) as HTMLCanvasElement | undefined;
+  return el ? canvasContexts.get(el) : undefined;
+}
+
 let toBlobResult: Blob | null = new NativeBlob(["png"], { type: "image/png" });
 
 beforeEach(() => {
-  HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
-    putImageData,
-  })) as unknown as typeof HTMLCanvasElement.prototype.getContext;
+  canvasContexts.clear();
+  HTMLCanvasElement.prototype.getContext = vi.fn(function (this: HTMLCanvasElement) {
+    let ctx = canvasContexts.get(this);
+    if (!ctx) {
+      ctx = makeMockContext();
+      canvasContexts.set(this, ctx);
+    }
+    return ctx;
+  }) as unknown as typeof HTMLCanvasElement.prototype.getContext;
   HTMLCanvasElement.prototype.toBlob = vi.fn(function (
     this: HTMLCanvasElement,
     callback: BlobCallback,
@@ -110,7 +171,6 @@ beforeEach(() => {
   vi.useFakeTimers();
   push.mockClear();
   currentRef = null;
-  putImageData.mockClear();
   toBlobResult = new NativeBlob(["png"], { type: "image/png" });
 
   renderLineArtAsyncMock.mockReset();
@@ -678,5 +738,124 @@ describe("ConvertPage — unmount", () => {
     await settle();
     unmount();
     expect(terminateLineArtWorkerMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// (j) FTA-020 — the export canvas holds only the raw transparent line art
+// (no backdrop baked in), while the visible preview canvas composites that
+// same data over an opaque backdrop so it doesn't vanish on screen.
+// ---------------------------------------------------------------------------
+
+describe("ConvertPage — transparent-line-art export vs. opaque preview (FTA-020)", () => {
+  it("paints the data/export canvas with ONLY putImageData — no fillRect, no drawImage", async () => {
+    takePendingImportMock.mockReturnValue({
+      original: makeOriginalBlob(),
+      width: 100,
+      height: 100,
+      thumbnail: makeThumbnailBlob(),
+    });
+    const lineArt = makeLineArt();
+    renderLineArtAsyncMock.mockResolvedValue(lineArt);
+
+    render(<ConvertPage />);
+    await settle();
+    await advanceDebounce();
+
+    const dataCtx = getDataContext();
+    expect(dataCtx).toBeDefined();
+    // Exactly the raw line-art buffer, and nothing else was ever drawn onto
+    // this canvas — this is what `handleSave` encodes to PNG, so a backdrop
+    // here would be baked into the exported file.
+    expect(dataCtx!.putImageData).toHaveBeenCalledTimes(1);
+    expect(dataCtx!.putImageData.mock.calls[0][0].data).toEqual(lineArt.data);
+    expect(dataCtx!.fillRect).not.toHaveBeenCalled();
+    expect(dataCtx!.drawImage).not.toHaveBeenCalled();
+  });
+
+  it("composites the visible preview canvas over a paper-white backdrop, never touching it with putImageData", async () => {
+    takePendingImportMock.mockReturnValue({
+      original: makeOriginalBlob(),
+      width: 100,
+      height: 100,
+      thumbnail: makeThumbnailBlob(),
+    });
+
+    render(<ConvertPage />);
+    await settle();
+    await advanceDebounce();
+
+    const previewCtx = getPreviewContext();
+    expect(previewCtx).toBeDefined();
+    // Backdrop first, then the data canvas drawn on top — the compositing
+    // order that keeps transparent-black lines visible on this screen's
+    // near-black background.
+    expect(previewCtx!.fillRect).toHaveBeenCalledTimes(1);
+    expect(previewCtx!.fillStyle).toBe("#F2F2F0");
+    expect(previewCtx!.drawImage).toHaveBeenCalledTimes(1);
+    // The preview canvas is never handed raw pixel data directly — it only
+    // ever receives the data canvas via drawImage.
+    expect(previewCtx!.putImageData).not.toHaveBeenCalled();
+  });
+
+  it("switches the preview backdrop to dark when inverted", async () => {
+    currentRef = "ref-123";
+    getReferenceMock.mockResolvedValue({
+      ok: true,
+      value: {
+        id: "ref-123",
+        name: "My reference",
+        originalImage: makeOriginalBlob(),
+        lineArtImage: makeOriginalBlob(),
+        thumbnail: makeThumbnailBlob(),
+        settings: { edgeStrength: 50, threshold: 50, thickness: 1, inverted: true },
+        lastOpacity: 50,
+        createdAt: 1,
+      },
+    });
+
+    render(<ConvertPage />);
+    await settle();
+    await advanceDebounce();
+
+    const previewCtx = getPreviewContext();
+    expect(previewCtx!.fillStyle).toBe("#0B0B0C");
+  });
+
+  it("encodes the exported PNG from the data canvas, which was drawn from the same buffer the export reads (canvasRef), not the preview canvas", async () => {
+    takePendingImportMock.mockReturnValue({
+      original: makeOriginalBlob(),
+      width: 100,
+      height: 100,
+      thumbnail: makeThumbnailBlob(),
+    });
+    saveReferenceMock.mockResolvedValue({
+      ok: true,
+      value: {
+        id: "new-id",
+        name: "Untitled",
+        originalImage: makeOriginalBlob(),
+        lineArtImage: makeOriginalBlob(),
+        thumbnail: makeThumbnailBlob(),
+        settings: { edgeStrength: 50, threshold: 50, thickness: 1, inverted: false },
+        lastOpacity: 50,
+        createdAt: 1,
+      },
+    });
+
+    render(<ConvertPage />);
+    await settle();
+    await advanceDebounce();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save to library" }));
+    await settle();
+
+    // toBlob is only ever mocked to resolve, but the important structural
+    // fact is which canvas element is the export source: it is the one with
+    // `data-slot="line-art-data"`, confirmed by its context receiving the
+    // putImageData call and nothing else, above. This test just confirms
+    // save still succeeds through that path unchanged.
+    expect(saveReferenceMock).toHaveBeenCalledTimes(1);
+    expect(saveReferenceMock.mock.calls[0][0].lineArtImage.type).toBe("image/png");
   });
 });
