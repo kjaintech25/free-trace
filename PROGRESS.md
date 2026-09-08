@@ -13,6 +13,7 @@ Notes:
 
 ## Run log
 - 2026-09-08 08:26 ET — plan approved by Kush; Batch 0 started.
+- 2026-09-08 09:5x ET — T-03 merged into v1 (PR #3). Repo made public + main ruleset; preview auth wall off (Kush's rulings). Third builder (T-08) running.
 - 2026-09-08 08:51 ET — T-02 merged into v1 (PR #2). Lanes A and B dispatched in worktrees.
 - 2026-09-08 08:41 ET — T-01 merged into v1 (PR #1). Vercel preset fixed (vercel.json). Preview URLs still behind Vercel Authentication — Kush to disable in the dashboard (or allow the orchestrator to).
 
@@ -28,7 +29,13 @@ Board: FTA-003 · Model: Sonnet · Branch: t-02-design-primitives · PR: #2 · A
 Checks: build ✅ typecheck ✅ lint ✅ test ✅ (9 tests) preview ✅
 Notes: components/ui/{Button,IconButton,Slider,Sheet,Card,ConfirmDialog}; /dev/primitives route; jsdom + testing-library as devDeps; vitest.config.ts carries the @/ alias (tsconfig paths are NOT read by vitest).
 
-## Lane A — T-03 storage (FTA-004) · T-04 import (FTA-005) · T-05 library (FTA-006) — TODO
+## T-03 — IndexedDB storage layer
+State: DONE
+Board: FTA-004 · Model: Opus · Branch: t-03-storage · PR: #3 · Attempts: 1
+Checks: build ✅ typecheck ✅ lint ✅ test ✅ (44 tests) preview ✅
+Notes: lib/storage.ts, DB `freetrace` v1, StorageResult discriminated union; idb + fake-indexeddb (DECISIONS 7, 8). TRAP: fake-indexeddb silently destroys jsdom Blobs — tests must install Node's Blob as global.
+
+## Lane A — T-04 import (FTA-005) IN PROGRESS · T-05 library (FTA-006) TODO
 ## Lane B — T-06 edge engine (FTA-007) · T-07 convert (FTA-008) — TODO
 ## Lane C — T-08 camera (FTA-009) · T-09 overlay (FTA-010) · T-14 harness (FTA-011) · T-10 gestures (FTA-012) · T-11 wake lock (FTA-013) — TODO
 ## Tail — T-12 PWA (FTA-014) · T-13 settings (FTA-015) · T-15 review packet (FTA-016) — TODO
