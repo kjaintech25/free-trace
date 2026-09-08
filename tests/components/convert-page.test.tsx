@@ -6,6 +6,7 @@ import type { LineArtSettings, PixelBuffer } from "@/lib/edges";
 import { renderLineArtAsync, terminateLineArtWorker } from "@/lib/edgesClient";
 import { downscaleToMax } from "@/lib/image";
 import { takePendingImport } from "@/lib/pendingImport";
+import { readPreferences } from "@/lib/preferences";
 import { getReference, saveReference, updateReference } from "@/lib/storage";
 
 const NativeBlob = NodeBlob as unknown as typeof Blob;
@@ -39,6 +40,10 @@ vi.mock("@/lib/pendingImport", () => ({
   takePendingImport: vi.fn(),
 }));
 
+vi.mock("@/lib/preferences", () => ({
+  readPreferences: vi.fn(),
+}));
+
 vi.mock("@/lib/storage", () => ({
   getReference: vi.fn(),
   saveReference: vi.fn(),
@@ -48,6 +53,7 @@ vi.mock("@/lib/storage", () => ({
 const renderLineArtAsyncMock = vi.mocked(renderLineArtAsync);
 const downscaleToMaxMock = vi.mocked(downscaleToMax);
 const takePendingImportMock = vi.mocked(takePendingImport);
+const readPreferencesMock = vi.mocked(readPreferences);
 const getReferenceMock = vi.mocked(getReference);
 const saveReferenceMock = vi.mocked(saveReference);
 const updateReferenceMock = vi.mocked(updateReference);
@@ -107,6 +113,8 @@ beforeEach(() => {
   downscaleToMaxMock.mockResolvedValue(makeSourcePixels());
   takePendingImportMock.mockReset();
   takePendingImportMock.mockReturnValue(null);
+  readPreferencesMock.mockReset();
+  readPreferencesMock.mockResolvedValue({ defaultOpacity: 50, keepAwake: true });
   getReferenceMock.mockReset();
   saveReferenceMock.mockReset();
   updateReferenceMock.mockReset();
@@ -289,6 +297,52 @@ describe("ConvertPage — save (new import)", () => {
       inverted: false,
     });
     expect(push).toHaveBeenCalledWith("/trace/new-id");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// (d2) Save on a new import uses the Settings default opacity, not a
+// hardcoded value.
+// ---------------------------------------------------------------------------
+
+describe("ConvertPage — save uses the Settings default opacity", () => {
+  it("passes the stored default opacity as lastOpacity on a new import", async () => {
+    takePendingImportMock.mockReturnValue({
+      original: makeOriginalBlob(),
+      width: 100,
+      height: 100,
+      thumbnail: makeThumbnailBlob(),
+    });
+    readPreferencesMock.mockResolvedValue({ defaultOpacity: 30, keepAwake: true });
+    saveReferenceMock.mockResolvedValue({
+      ok: true,
+      value: {
+        id: "new-id",
+        name: "Untitled",
+        originalImage: makeOriginalBlob(),
+        lineArtImage: makeOriginalBlob(),
+        thumbnail: makeThumbnailBlob(),
+        settings: {
+          edgeStrength: 50,
+          threshold: 50,
+          thickness: 1,
+          inverted: false,
+        },
+        lastOpacity: 30,
+        createdAt: 1,
+      },
+    });
+
+    render(<ConvertPage />);
+    await settle();
+    await advanceDebounce();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save to library" }));
+    await settle();
+
+    expect(saveReferenceMock).toHaveBeenCalledTimes(1);
+    const call = saveReferenceMock.mock.calls[0][0];
+    expect(call.lastOpacity).toBe(30);
   });
 });
 
