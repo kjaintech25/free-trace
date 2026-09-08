@@ -554,6 +554,121 @@ describe('ConvertPage — "Choose a different photo"', () => {
 });
 
 // ---------------------------------------------------------------------------
+// (i) Save after a source swap on a re-tune entry (FTA-018 round 2). A swap
+// makes the stored reference's originalImage/thumbnail stale, so Save must
+// persist the new ones alongside the re-converted line art; a save with no
+// swap must keep the original patch shape exactly (settings/line-art only).
+// ---------------------------------------------------------------------------
+
+describe("ConvertPage — Save after a photo swap on a re-tune entry", () => {
+  it("persists the new originalImage and thumbnail alongside the re-converted line art", async () => {
+    currentRef = "ref-123";
+    getReferenceMock.mockResolvedValue({
+      ok: true,
+      value: {
+        id: "ref-123",
+        name: "My reference",
+        originalImage: makeOriginalBlob(),
+        lineArtImage: makeOriginalBlob(),
+        thumbnail: makeThumbnailBlob(),
+        settings: { edgeStrength: 50, threshold: 50, thickness: 1, inverted: false },
+        lastOpacity: 50,
+        createdAt: 1,
+      },
+    });
+    updateReferenceMock.mockResolvedValue({
+      ok: true,
+      value: {
+        id: "ref-123",
+        name: "My reference",
+        originalImage: makeOriginalBlob(),
+        lineArtImage: makeOriginalBlob(),
+        thumbnail: makeThumbnailBlob(),
+        settings: { edgeStrength: 50, threshold: 50, thickness: 1, inverted: false },
+        lastOpacity: 50,
+        createdAt: 1,
+      },
+    });
+
+    render(<ConvertPage />);
+    await settle();
+    await advanceDebounce();
+
+    const newOriginal = makeOriginalBlob();
+    const newThumbnail = makeThumbnailBlob();
+    importPhotoMock.mockResolvedValue({
+      ok: true,
+      value: { original: newOriginal, width: 50, height: 50, thumbnail: newThumbnail },
+    });
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    pickFile(input, makeFile());
+    await settlePhotoPick();
+    await advanceDebounce();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save to library" }));
+    await settle();
+
+    expect(updateReferenceMock).toHaveBeenCalledTimes(1);
+    const patch = updateReferenceMock.mock.calls[0][1];
+    expect(patch.originalImage).toBe(newOriginal);
+    expect(patch.thumbnail).toBe(newThumbnail);
+    expect(push).toHaveBeenCalledWith("/trace/ref-123");
+  });
+
+  it("omits originalImage and thumbnail when the photo was never swapped", async () => {
+    currentRef = "ref-123";
+    getReferenceMock.mockResolvedValue({
+      ok: true,
+      value: {
+        id: "ref-123",
+        name: "My reference",
+        originalImage: makeOriginalBlob(),
+        lineArtImage: makeOriginalBlob(),
+        thumbnail: makeThumbnailBlob(),
+        settings: { edgeStrength: 50, threshold: 50, thickness: 1, inverted: false },
+        lastOpacity: 50,
+        createdAt: 1,
+      },
+    });
+    updateReferenceMock.mockResolvedValue({
+      ok: true,
+      value: {
+        id: "ref-123",
+        name: "My reference",
+        originalImage: makeOriginalBlob(),
+        lineArtImage: makeOriginalBlob(),
+        thumbnail: makeThumbnailBlob(),
+        settings: { edgeStrength: 50, threshold: 50, thickness: 1, inverted: false },
+        lastOpacity: 50,
+        createdAt: 1,
+      },
+    });
+
+    render(<ConvertPage />);
+    await settle();
+    await advanceDebounce();
+
+    // No photo swap this time — just move a slider, same as any ordinary re-tune.
+    fireEvent.change(screen.getByLabelText("Edge strength"), { target: { value: "60" } });
+    await advanceDebounce();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save to library" }));
+    await settle();
+
+    expect(updateReferenceMock).toHaveBeenCalledTimes(1);
+    const patch = updateReferenceMock.mock.calls[0][1];
+    expect(patch).toEqual({
+      lineArtImage: expect.any(Object),
+      settings: { edgeStrength: 60, threshold: 50, thickness: 1, inverted: false },
+    });
+    expect("originalImage" in patch).toBe(false);
+    expect("thumbnail" in patch).toBe(false);
+    expect(push).toHaveBeenCalledWith("/trace/ref-123");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Unmount — terminates the worker.
 // ---------------------------------------------------------------------------
 

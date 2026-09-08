@@ -37,10 +37,18 @@ import { usePhotoPicker } from "@/lib/usePhotoPicker";
 /** Settle window (SPEC §6.2: preview updates within ~150ms of a slider settling). */
 const DEBOUNCE_MS = 120;
 
-/** Where this screen's source came from, and how "Save" should behave. */
+/**
+ * Where this screen's source came from, and how "Save" should behave.
+ *
+ * `retune`'s `thumbnail` is only ever populated by a "Choose a different
+ * photo" swap (FTA-018 round 2) — the original `?ref=` load has no reason to
+ * regenerate a thumbnail nothing asked it to touch. `sourceSwapped` (state,
+ * below) is what actually gates whether Save persists it, not this field's
+ * presence, so a stale leftover here can never accidentally get written.
+ */
 type EntryMode =
   | { kind: "new"; originalImage: Blob; thumbnail: Blob }
-  | { kind: "retune"; refId: string; originalImage: Blob };
+  | { kind: "retune"; refId: string; originalImage: Blob; thumbnail?: Blob };
 
 export default function ConvertPage() {
   return (
@@ -67,6 +75,12 @@ function ConvertScreen() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Whether "Choose a different photo" has replaced the source since this
+  // screen loaded (FTA-018 round 2) — gates whether Save persists a new
+  // originalImage/thumbnail for a re-tune entry. Cleared whenever an entry
+  // is (re-)established, set only by a successful swap.
+  const [sourceSwapped, setSourceSwapped] = useState(false);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // The pristine, never-transferred source pixels. A ref, not state: it never
   // needs to trigger a render on its own, only the settings/entry it is
@@ -92,6 +106,7 @@ function ConvertScreen() {
             originalImage: pending.original,
             thumbnail: pending.thumbnail,
           });
+          setSourceSwapped(false);
           setSettings(DEFAULT_LINE_ART_SETTINGS);
         } catch (error) {
           if (cancelled) return;
@@ -124,6 +139,7 @@ function ConvertScreen() {
             refId,
             originalImage: result.value.originalImage,
           });
+          setSourceSwapped(false);
           setSettings(normaliseLineArtSettings(result.value.settings));
         } catch (error) {
           if (cancelled) return;
@@ -274,8 +290,14 @@ function ConvertScreen() {
               if (previous.kind === "new") {
                 return { kind: "new", originalImage: image.original, thumbnail: image.thumbnail };
               }
-              return { kind: "retune", refId: previous.refId, originalImage: image.original };
+              return {
+                kind: "retune",
+                refId: previous.refId,
+                originalImage: image.original,
+                thumbnail: image.thumbnail,
+              };
             });
+            setSourceSwapped(true);
             setSettings(DEFAULT_LINE_ART_SETTINGS);
           } catch (error) {
             setConvertError(
@@ -325,7 +347,21 @@ function ConvertScreen() {
       return;
     }
 
-    const result = await updateReference(entry.refId, { lineArtImage: png, settings });
+    // A source swap ("Choose a different photo", FTA-018 round 2) means the
+    // stored reference's own originalImage/thumbnail are now stale — persist
+    // the new ones alongside the re-converted line art. Otherwise this is
+    // the original patch shape: settings/line-art only, original untouched.
+    const result = await updateReference(
+      entry.refId,
+      sourceSwapped
+        ? {
+            originalImage: entry.originalImage,
+            thumbnail: entry.thumbnail,
+            lineArtImage: png,
+            settings,
+          }
+        : { lineArtImage: png, settings },
+    );
     if (result.ok) {
       router.push(`/trace/${entry.refId}`);
       return;
