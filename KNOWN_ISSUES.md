@@ -84,30 +84,28 @@ saved references live in IndexedDB, which the service worker never reads or writ
 
 ## 3. A reference opened for the very first time while offline shows the wrong image
 
-**Narrow, and only offline.** `/trace/[id]` is a dynamic route — the ids are your own
-photos, so no precache list can name them in advance.
+**FIXED (T-11).** `components/TraceScreen.tsx` no longer trusts the server-rendered `id`
+prop on its own. It derives the *effective* id client-side — `useParams()` from
+`next/navigation` first, falling back to parsing `window.location.pathname` (`/trace/<id>`)
+when that has nothing — and loads and renders `data-reference-id` from that value. That is
+the id-neutral shell this section used to ask for: the `/trace/__any` fallback page (below)
+now paints the *correct* reference once the client re-derives the real id from the URL,
+regardless of which reference the cached HTML shell was originally rendered for.
 
-**What we do.** Every `/trace/<id>` you open while online is cached under its own URL, so
-reopening *that* reference offline is exact and correct. In addition, the first trace
-screen to load successfully is also stored under one synthetic key, `/trace/__any`
-(`lib/swRouting.ts`), and that copy is used as a last resort for an id that has never
-been opened on this device.
+**What remains.** The narrow window is between the cached HTML painting and React
+hydrating: for that first frame, `data-reference-id` (and, in principle, anything a script
+reads before hydration) can still briefly show the *stale* id baked into the cached
+shell's server render. It resolves to the correct id itself, with no reload needed, as
+soon as hydration runs — this is a first-paint flicker in the underlying attribute, not a
+wrong-image state a user would see, since the actual line art only ever renders from the
+effective (post-hydration) id.
 
-**The limit.** That fallback restores the *app*, not the *reference*. The document it
-serves was server-rendered for whichever reference was cached first, so its route
-parameter belongs to that one — an id you have never opened offline can paint the wrong
-reference until you reload it once with a connection. The alternative was a browser error
-page, which is strictly worse.
-
-**Practical consequence:** open a reference once while online. After that it is exact
-offline, forever. In normal use you convert a photo and go straight to tracing it, which
-is already an online visit.
-
-> **For T-09/T-10 (overlay + gestures):** read the reference id from
-> `window.location.pathname` on the client rather than from the server `params`, and this
-> limitation disappears entirely — the served shell becomes id-neutral and any reference
-> opens correctly offline. It is a small change while that code is being written and an
-> awkward one afterwards.
+**Background — how the fallback works.** Every `/trace/<id>` you open while online is
+cached under its own URL, so reopening *that* reference offline is exact and correct. In
+addition, the first trace screen to load successfully is also stored under one synthetic
+key, `/trace/__any` (`lib/swRouting.ts`), and that copy is used as a last resort for an id
+that has never been opened on this device — now safe to open for any reference, per the
+fix above.
 
 ---
 

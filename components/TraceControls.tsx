@@ -14,6 +14,12 @@ export interface TraceControlsProps {
   onFlipToggle: () => void;
   inverted: boolean;
   onInvertToggle: () => void;
+  /**
+   * Collapsed to a single small pill after ~4s idle (SPEC §6.3, T-11). The
+   * idle timer itself lives in TraceScreen — this component only renders
+   * the two states.
+   */
+  collapsed: boolean;
 }
 
 const ICON = {
@@ -74,7 +80,14 @@ function InvertIcon() {
  * pill's curve cuts into the corners at the row's height, and a spread row
  * would push the outer buttons under it.
  *
- * NOT here: the collapse-to-a-pill-after-4s behaviour is T-11's.
+ * Collapse-to-a-pill-after-4s (T-11, SPEC §6.3): `collapsed` toggles which of
+ * the two states below is visible. SPEC §9 forbids any layout shift when
+ * this happens, so BOTH states stay mounted, in the same `absolute` box, at
+ * all times — never unmounted/remounted, which would be a differently-sized
+ * element reflowing the readout underneath it. Only `transform` and
+ * `opacity` change (compositor-only properties, same reasoning as
+ * TraceOverlay), on a plain ~150ms CSS transition, and `motion-reduce:`
+ * drops the transition duration to zero for `prefers-reduced-motion`.
  */
 export function TraceControls({
   opacity,
@@ -85,38 +98,77 @@ export function TraceControls({
   onFlipToggle,
   inverted,
   onInvertToggle,
+  collapsed,
 }: TraceControlsProps) {
   return (
     <div
       data-slot="controls"
       className="absolute inset-x-0 bottom-0 z-30 flex justify-center pb-[calc(var(--safe-bottom)+1rem)] pl-[calc(var(--safe-left)+1rem)] pr-[calc(var(--safe-right)+1rem)]"
     >
-      <div className="flex w-full max-w-sm flex-col gap-1 rounded-full bg-surface/80 px-6 py-2 backdrop-blur-md">
-        <Slider label="Opacity" value={opacity} onChange={onOpacityChange} />
-        <div className="flex items-center justify-center gap-3">
-          <IconButton
-            aria-label="Lock overlay"
-            active={locked}
-            onClick={onLockToggle}
-          >
-            <LockIcon locked={locked} />
-          </IconButton>
-          <IconButton
-            aria-label="Flip horizontal"
-            active={flipped}
-            onClick={onFlipToggle}
-          >
-            <FlipIcon />
-          </IconButton>
-          <IconButton
-            aria-label="Invert"
-            active={inverted}
-            onClick={onInvertToggle}
-          >
-            <InvertIcon />
-          </IconButton>
-          <CloseTraceButton />
+      {/* The one positioned box both states share — a CSS grid with a single
+          cell, so stacking the two on top of each other costs no layout of
+          its own and neither state's size affects the other's. */}
+      <div
+        data-slot="chrome"
+        data-chrome={collapsed ? "collapsed" : "expanded"}
+        className="grid w-full max-w-sm place-items-center"
+      >
+        <div
+          className={`col-start-1 row-start-1 flex w-full flex-col gap-1 rounded-full bg-surface/80 px-6 py-2 backdrop-blur-md transition-[opacity,transform] duration-150 motion-reduce:duration-0 ${
+            collapsed
+              ? "pointer-events-none scale-95 opacity-0"
+              : "scale-100 opacity-100"
+          }`}
+          aria-hidden={collapsed}
+        >
+          <Slider label="Opacity" value={opacity} onChange={onOpacityChange} />
+          <div className="flex items-center justify-center gap-3">
+            <IconButton
+              aria-label="Lock overlay"
+              active={locked}
+              onClick={onLockToggle}
+              tabIndex={collapsed ? -1 : undefined}
+            >
+              <LockIcon locked={locked} />
+            </IconButton>
+            <IconButton
+              aria-label="Flip horizontal"
+              active={flipped}
+              onClick={onFlipToggle}
+              tabIndex={collapsed ? -1 : undefined}
+            >
+              <FlipIcon />
+            </IconButton>
+            <IconButton
+              aria-label="Invert"
+              active={inverted}
+              onClick={onInvertToggle}
+              tabIndex={collapsed ? -1 : undefined}
+            >
+              <InvertIcon />
+            </IconButton>
+            <CloseTraceButton />
+          </div>
         </div>
+
+        {/* The collapsed pill: ≥44pt tap target, surface/80, opacity readout
+            only (SPEC §6.3). A tap anywhere on the screen already restarts
+            the idle timer via TraceScreen's root capture listeners, so this
+            button needs no click handler of its own to "restore" — it just
+            has to be a real, focusable, tappable element. */}
+        <button
+          type="button"
+          aria-label={`Show controls — opacity ${opacity}%`}
+          tabIndex={collapsed ? undefined : -1}
+          className={`col-start-1 row-start-1 flex h-11 min-w-11 items-center justify-center rounded-full bg-surface/80 px-4 backdrop-blur-md transition-[opacity,transform] duration-150 motion-reduce:duration-0 ${
+            collapsed
+              ? "scale-100 opacity-100"
+              : "pointer-events-none scale-95 opacity-0"
+          }`}
+          aria-hidden={!collapsed}
+        >
+          <span className="numeral text-sm text-text">{opacity}%</span>
+        </button>
       </div>
     </div>
   );
