@@ -360,6 +360,7 @@ export function TraceScreen({ id }: { id: string }) {
             onInvertToggle={handleInvertToggle}
             cameraFacing={cameraFacing}
             onCameraFlip={handleCameraFlip}
+            referenceId={effectiveId}
             collapsed={!chromeExpanded}
           />
         </>

@@ -1,6 +1,7 @@
 "use client";
 
 import { CloseTraceButton } from "@/components/CloseTraceButton";
+import { RetuneButton } from "@/components/RetuneButton";
 import { IconButton, Slider } from "@/components/ui";
 import type { CameraFacing } from "@/lib/camera";
 
@@ -18,6 +19,8 @@ export interface TraceControlsProps {
   /** Which physical camera is active (FTA-019). */
   cameraFacing: CameraFacing;
   onCameraFlip: () => void;
+  /** The open reference's id — routes the Re-tune shortcut (FTA-018). */
+  referenceId: string;
   /**
    * Collapsed to a single small pill after ~4s idle (SPEC §6.3, T-11). The
    * idle timer itself lives in TraceScreen — this component only renders
@@ -106,6 +109,15 @@ function CameraFlipIcon() {
  * `opacity` change (compositor-only properties, same reasoning as
  * TraceOverlay), on a plain ~150ms CSS transition, and `motion-reduce:`
  * drops the transition duration to zero for `prefers-reduced-motion`.
+ *
+ * FTA-018's Re-tune shortcut sits next to Close at the pill's right edge —
+ * the two "leave this screen" actions grouped together. Six icons at 44pt
+ * each (SPEC §7) no longer fit at `gap-3` (12px) inside the pill at 390px
+ * width, so the row's gap drops to `gap-2` (8px):
+ *   available inner width = min(390 - 2*16 safe/outer padding, 384 max-w-sm)
+ *                            - 2*24 pill px-6  = 358 - 48 = 310px
+ *   row width  = 6 * 44 + 5 * 8            = 264 + 40    = 304px  (fits, 6px spare)
+ * (`gap-3`'s 12px would have needed 324px — 14px over budget.)
  */
 export function TraceControls({
   opacity,
@@ -118,6 +130,7 @@ export function TraceControls({
   onInvertToggle,
   cameraFacing,
   onCameraFlip,
+  referenceId,
   collapsed,
 }: TraceControlsProps) {
   return (
@@ -142,7 +155,7 @@ export function TraceControls({
           aria-hidden={collapsed}
         >
           <Slider label="Opacity" value={opacity} onChange={onOpacityChange} />
-          <div className="flex items-center justify-center gap-3">
+          <div className="flex items-center justify-center gap-2">
             <IconButton
               aria-label="Lock overlay"
               active={locked}
@@ -176,6 +189,7 @@ export function TraceControls({
             >
               <CameraFlipIcon />
             </IconButton>
+            <RetuneButton referenceId={referenceId} />
             <CloseTraceButton />
           </div>
         </div>

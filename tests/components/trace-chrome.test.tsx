@@ -382,6 +382,33 @@ describe("TraceScreen — Flip camera button", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Re-tune shortcut (FTA-018)
+// ---------------------------------------------------------------------------
+
+describe("TraceScreen — Re-tune shortcut", () => {
+  it("routes to /convert?ref=<id> for the open reference", async () => {
+    await renderScreen(REF_ID);
+
+    const button = screen.getByRole("button", { name: "Re-tune line art" });
+    fireEvent.click(button);
+
+    expect(pushMock).toHaveBeenCalledWith(`/convert?ref=${REF_ID}`);
+  });
+
+  it("uses the client-derived effective id, not a stale prop id", async () => {
+    useParamsMock.mockReturnValue({ id: OTHER_ID });
+    getReferenceMock.mockResolvedValue({ ok: true, value: makeReference(OTHER_ID) });
+
+    await renderScreen(REF_ID);
+
+    const button = screen.getByRole("button", { name: "Re-tune line art" });
+    fireEvent.click(button);
+
+    expect(pushMock).toHaveBeenCalledWith(`/convert?ref=${OTHER_ID}`);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // effective id (carried KNOWN_ISSUES.md §3)
 // ---------------------------------------------------------------------------
 

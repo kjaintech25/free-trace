@@ -16,7 +16,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button, Slider } from "@/components/ui";
+import { Button, IconButton, Slider } from "@/components/ui";
 import {
   DEFAULT_LINE_ART_SETTINGS,
   EDGE_STRENGTH_RANGE,
@@ -32,6 +32,7 @@ import { downscaleToMax } from "@/lib/image";
 import { takePendingImport } from "@/lib/pendingImport";
 import { readPreferences } from "@/lib/preferences";
 import { getReference, saveReference, updateReference } from "@/lib/storage";
+import { usePhotoPicker } from "@/lib/usePhotoPicker";
 
 /** Settle window (SPEC §6.2: preview updates within ~150ms of a slider settling). */
 const DEBOUNCE_MS = 120;
@@ -237,6 +238,56 @@ function ConvertScreen() {
     setSettings((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
 
+  // -------------------------------------------------------------------------
+  // Back (FTA-018): nothing here is saved. A new import simply returns to
+  // the library — there was never anything persisted to undo. A re-tune
+  // returns to the trace screen it came from, leaving the stored reference
+  // exactly as it was (no updateReference call).
+  // -------------------------------------------------------------------------
+  function handleBack() {
+    if (!entry) return;
+    if (entry.kind === "retune") {
+      router.push(`/trace/${entry.refId}`);
+      return;
+    }
+    router.push("/");
+  }
+
+  // -------------------------------------------------------------------------
+  // "Choose a different photo" (FTA-018): swaps the source in place — no
+  // navigation, no pendingImport hand-off (this bypasses that module
+  // entirely; it's for the one-time import->convert hop, not an in-place
+  // swap). The four controls reset to engine defaults and a fresh
+  // conversion is requested through the same debounced effect a slider
+  // change uses, by changing `settings` (its identity, not just a field).
+  // -------------------------------------------------------------------------
+  const { inputRef: photoPickerInputRef, handleChange: handlePhotoPickerChange, openPicker, error: photoPickerError } =
+    usePhotoPicker({
+      onPicked: (image) => {
+        void (async () => {
+          setConvertError(null);
+          try {
+            const pixels = await downscaleToMax(image.original, MAX_LONG_EDGE);
+            sourceRef.current = pixels;
+            setEntry((previous) => {
+              if (!previous) return previous;
+              if (previous.kind === "new") {
+                return { kind: "new", originalImage: image.original, thumbnail: image.thumbnail };
+              }
+              return { kind: "retune", refId: previous.refId, originalImage: image.original };
+            });
+            setSettings(DEFAULT_LINE_ART_SETTINGS);
+          } catch (error) {
+            setConvertError(
+              error instanceof Error
+                ? error.message
+                : "That photo could not be prepared for conversion.",
+            );
+          }
+        })();
+      },
+    });
+
   function encodePng(canvas: HTMLCanvasElement): Promise<Blob | null> {
     return new Promise((resolve) => {
       canvas.toBlob((blob) => resolve(blob), "image/png");
@@ -306,7 +357,27 @@ function ConvertScreen() {
   }
 
   return (
-    <main className="flex min-h-dvh flex-col bg-bg text-text">
+    <main className="relative flex min-h-dvh flex-col bg-bg text-text">
+      <IconButton
+        aria-label="Back"
+        onClick={handleBack}
+        className="absolute left-[calc(var(--safe-left)+1rem)] top-[calc(var(--safe-top)+1rem)] z-10 bg-surface/80 backdrop-blur-md"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M15 6 9 12l6 6" />
+        </svg>
+      </IconButton>
+
       <div className="flex flex-1 items-center justify-center p-4">
         <div
           className="relative aspect-square w-full max-w-md overflow-hidden rounded-xl bg-black"
@@ -334,6 +405,9 @@ function ConvertScreen() {
         <p className="px-4 text-center text-sm text-text-muted">{convertError}</p>
       )}
       {saveError && <p className="px-4 text-center text-sm text-text-muted">{saveError}</p>}
+      {photoPickerError && (
+        <p className="px-4 text-center text-sm text-text-muted">{photoPickerError}</p>
+      )}
 
       <div
         className="flex flex-col gap-4 rounded-t-xl bg-surface p-4"
@@ -376,6 +450,17 @@ function ConvertScreen() {
             {saving ? "Saving…" : "Save to library"}
           </Button>
         </div>
+
+        <Button variant="quiet" onClick={openPicker}>
+          Choose a different photo
+        </Button>
+        <input
+          ref={photoPickerInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handlePhotoPickerChange}
+        />
       </div>
     </main>
   );
