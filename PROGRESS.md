@@ -13,6 +13,7 @@ Notes:
 
 ## Run log
 - 2026-09-08 08:26 ET — plan approved by Kush; Batch 0 started.
+- 2026-09-08 11:5x ET — T-11 merged into v1 (PR #14). ALL code tickets merged except T-14 (held for memory).
 - 2026-09-08 11:4x ET — T-10 merged into v1 (PR #13). T-11 dispatched alone (memory).
 - 2026-09-08 11:3x ET — T-12 merged into v1 (PR #12). T-14 builder STOPPED before its browser step on the low-RAM notice (swap 4.4→4.8 GB of 5); FTA-011 BLOCKED on memory clearing; re-run alone later.
 - 2026-09-08 11:1x ET — T-09 merged into v1 (PR #11). T-14 + T-10 dispatched in parallel.
@@ -101,8 +102,10 @@ Notes: lib/gestures.ts (pure state machine; midpoint-anchored pinch+rotate deriv
 State: BLOCKED (memory) — attempt 1 stopped before its browser step; re-run ALONE when Kush clears memory
 Board: FTA-011 · Model: Opus · Branch: t-14-verification-harness · PR: · Attempts: 0 counted
 
-## T-11 — Wake lock and collapsing chrome (+ KNOWN_ISSUES §3 id-from-location fix)
-State: IN PROGRESS
-Board: FTA-013 · Model: Sonnet · Branch: t-11-wake-lock-chrome · PR: · Attempts: 1
+## T-11 — Wake lock and collapsing chrome (+ keepAwake wiring + KNOWN_ISSUES §3 id-from-location fix)
+State: DONE
+Board: FTA-013 · Model: Sonnet · Branch: t-11-wake-lock-chrome · PR: #14 · Attempts: 1
+Checks: typecheck ✅ lint ✅ test ✅ (318) build ✅ (builder + CI) preview ✅ · harness screenshots: pending T-14
+Notes: lib/wakeLock.ts + components/useWakeLock.ts (silent degrade; re-acquire on visibilitychange/pageshow); IDLE_MS 4000 collapse to pill, data-chrome attr, transform/opacity-only 150ms, motion-reduce; keepAwake from readPreferences(); effective id from useParams → location.pathname → prop.
 ## Tail — T-15 review packet (FTA-016) — TODO
 
