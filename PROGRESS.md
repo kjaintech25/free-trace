@@ -13,6 +13,7 @@ Notes:
 
 ## Run log
 - 2026-09-08 08:26 ET — plan approved by Kush; Batch 0 started.
+- 2026-09-08 11:4x ET — T-10 merged into v1 (PR #13). T-11 dispatched alone (memory).
 - 2026-09-08 11:3x ET — T-12 merged into v1 (PR #12). T-14 builder STOPPED before its browser step on the low-RAM notice (swap 4.4→4.8 GB of 5); FTA-011 BLOCKED on memory clearing; re-run alone later.
 - 2026-09-08 11:1x ET — T-09 merged into v1 (PR #11). T-14 + T-10 dispatched in parallel.
 - 2026-09-08 10:5x ET — FTA-017 polish (default opacity wired into convert save) merged, PR #10.
@@ -90,6 +91,18 @@ Board: FTA-010 · Model: Opus · Branch: t-09-overlay · PR: #11 · Attempts: 1
 Checks: build ✅ typecheck ✅ lint ✅ test ✅ (167 on branch) preview ✅ · harness screenshot: pending T-14
 Notes: lib/overlayTransform.ts (single transform state; clampTransform 0.1–20, ±Infinity → previous), components/TraceOverlay.tsx (img, z-10, invert via CSS filter, data-transform attr), TraceControls.tsx (z-30 pill: opacity slider + lock/flip/invert/close), TraceScreen.tsx (400ms persist debounce). Close button moved from top-right into the bar per §6.3. backdrop-blur-md on the bar is the first thing to drop if the preview stutters.
 
-## Lane C (parallel on Kush's ask) — T-14 harness (FTA-011) IN PROGRESS [wt-lane-c] · T-10 gestures (FTA-012) IN PROGRESS [wt-lane-a] · T-11 wake lock (FTA-013) TODO
+## T-10 — Gesture layer
+State: DONE
+Board: FTA-012 · Model: Opus · Branch: t-10-gestures · PR: #13 · Attempts: 1
+Checks: typecheck ✅ lint ✅ test ✅ (262) build ✅ (builder + CI) preview ✅ · harness screenshots: pending T-14
+Notes: lib/gestures.ts (pure state machine; midpoint-anchored pinch+rotate derived: t = m − R(dθ)·f·(m₀ − t₀); every output via clampTransform), components/useOverlayGestures.ts (pointer capture; touchstart/touchmove/gesturestart/gesturechange non-passive preventDefault), data-locked on the container. Mutation-tested (centre-anchoring fails 8/44). Control bar must stay a SIBLING of the overlay container (z-30).
+
+## T-14 — Verification harness
+State: BLOCKED (memory) — attempt 1 stopped before its browser step; re-run ALONE when Kush clears memory
+Board: FTA-011 · Model: Opus · Branch: t-14-verification-harness · PR: · Attempts: 0 counted
+
+## T-11 — Wake lock and collapsing chrome (+ KNOWN_ISSUES §3 id-from-location fix)
+State: IN PROGRESS
+Board: FTA-013 · Model: Sonnet · Branch: t-11-wake-lock-chrome · PR: · Attempts: 1
 ## Tail — T-15 review packet (FTA-016) — TODO
 
