@@ -18,3 +18,35 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  # The headless verification harness (ticket T-14). Separate from `gates` so a
+  # browser failure is legible on its own and never masks a unit-test failure.
+  #
+  # This job FAILS THE BUILD when the overlay is absent from the composited
+  # frame: tests/e2e/trace.spec.ts counts dark pixels in the 0% and 100%
+  # opacity screenshots and throws when the difference collapses. Nothing here
+  # swallows that — no `continue-on-error`, no `|| true` — so a Trace screen
+  # that renders no line art cannot go green.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # --with-deps pulls the system libraries headless Chromium needs on a
+      # bare runner; without them the browser fails to launch, not to render.
+      - run: npx playwright install --with-deps chromium
+      # playwright.config.ts owns the server: it runs `npm run build` and
+      # `next start -p 3417` itself, so there is no separate build step here.
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        # Screenshots are most valuable on the run that FAILED, so upload them
+        # either way.
+        if: always()
+        with:
+          name: trace-screenshots
+          path: artifacts/
+          if-no-files-found: error
