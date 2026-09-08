@@ -13,6 +13,7 @@ Notes:
 
 ## Run log
 - 2026-09-08 08:26 ET — plan approved by Kush; Batch 0 started.
+- 2026-09-08 10:2x ET — T-08 merged into v1 (PR #6).
 - 2026-09-08 10:1x ET — T-06 merged into v1 (PR #4).
 - 2026-09-08 10:0x ET — T-04 merged into v1 (PR #5).
 - 2026-09-08 09:5x ET — T-03 merged into v1 (PR #3). Repo made public + main ruleset; preview auth wall off (Kush's rulings). Third builder (T-08) running.
@@ -51,6 +52,12 @@ Checks: build ✅ typecheck ✅ lint ✅ test ✅ (49 + 2 opt-in perf) preview �
 Notes: lib/edges.ts pure pipeline + ranges; lib/edges.worker.ts + lib/edgesClient.ts (transfers buffers — INPUT IS DETACHED, keep a pristine copy); lib/image.ts downscale (untested, no canvas). 12MP median 239ms in Node (ESTIMATE). DECISIONS row 9.
 
 ## Lane B — T-07 convert (FTA-008) IN PROGRESS
-## Lane C — T-08 camera (FTA-009) · T-09 overlay (FTA-010) · T-14 harness (FTA-011) · T-10 gestures (FTA-012) · T-11 wake lock (FTA-013) — TODO
+## T-08 — Camera feed
+State: DONE
+Board: FTA-009 · Model: Opus · Branch: t-08-camera-feed · PR: #6 · Attempts: 1
+Checks: build ✅ typecheck ✅ lint ✅ test ✅ (24 new) preview ✅ · harness screenshot: pending T-14
+Notes: lib/camera.ts (ideal→exact fallback, typed failures), components/CameraFeed.tsx (6 states, Start-camera tap, sessionStorage auto-start, stop on unmount/pagehide), app/trace/[id]/page.tsx with <div data-slot="overlay"> at z-10; failure panel + close at z-20. ⚠️ /trace/[id] builds as a DYNAMIC route (ƒ) — T-12's service worker needs a navigation fallback so it works offline.
+
+## Lane C — T-09 overlay (FTA-010) IN PROGRESS · T-14 harness (FTA-011) · T-10 gestures (FTA-012) · T-11 wake lock (FTA-013) — TODO
 ## Tail — T-12 PWA (FTA-014) · T-13 settings (FTA-015) · T-15 review packet (FTA-016) — TODO
 
