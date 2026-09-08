@@ -13,6 +13,7 @@ Notes:
 
 ## Run log
 - 2026-09-08 08:26 ET — plan approved by Kush; Batch 0 started.
+- 2026-09-08 12:20 ET — FTA-020 lines-only overlay (transparent background) merged, PR #19; shipped to main. Session closed.
 - 2026-09-08 11:49 ET — FTA-018 (back/start-over, 2 rounds) merged, PR #18. FTA-019 (camera flip) merged 11:37, PR #17. REVIEW.md FINAL; PR #15 v1→main un-drafted for Kush. RUN COMPLETE.
   (⚠️ earlier run-log lines below wrote "13:1x ET"/"12:0x ET"/"11:5x ET" for events that were 11:2x/10:0x/10:5x ET — the board's UTC timestamps were mis-converted by +2h in places. Board event timestamps are the authority.)
 - 2026-09-08 11:25 ET — T-14 merged into v1 (PR #16). ALL 15 code tickets merged. Kush's phone review PASSED gates 1–3 at ~12:3x; FTA-018 (back/start-over) + FTA-019 (camera flip) dispatched.
