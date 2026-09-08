@@ -1,0 +1,8 @@
+# The fake camera feed (ticket T-14) is a raw YUV4MPEG2 stream: a text header
+# followed by uncompressed planes. Those planes contain 0x0A bytes as ordinary
+# pixel values, so a checkout that applied any end-of-line conversion would
+# corrupt the frames while leaving the file superficially intact — the harness
+# would then decode garbage and the overlay gate would fail for a reason that
+# has nothing to do with the app. Marking it binary also stops git trying to
+# diff or merge a megabyte of pixels as text.
+*.y4m binary
