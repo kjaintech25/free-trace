@@ -13,6 +13,7 @@ Notes:
 
 ## Run log
 - 2026-09-08 08:26 ET — plan approved by Kush; Batch 0 started.
+- 2026-09-08 10:5x ET — FTA-017 polish (default opacity wired into convert save) merged, PR #10.
 - 2026-09-08 10:5x ET — T-13 merged into v1 (PR #9).
 - 2026-09-08 10:4x ET — T-07 merged into v1 (PR #8); lane B complete. T-12 pulled forward into the freed slot.
 - 2026-09-08 10:3x ET — T-05 merged into v1 (PR #7); lane A complete. T-13 pulled forward into the freed slot.
