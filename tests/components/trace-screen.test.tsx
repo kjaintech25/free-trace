@@ -1,4 +1,11 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PERSIST_DEBOUNCE_MS, TraceScreen } from "@/components/TraceScreen";
 import {
@@ -6,13 +13,17 @@ import {
   toCssTransform,
   type OverlayTransform,
 } from "@/lib/overlayTransform";
-import { getReference, updateReference } from "@/lib/storage";
+import { getPreference, getReference, updateReference } from "@/lib/storage";
 import type { Reference, StorageResult } from "@/lib/storage";
 
 const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
+  // No route param mocked here on purpose: this suite is about screen state,
+  // not the id-resolution T-11 adds, so it should behave exactly as if
+  // useParams found nothing and TraceScreen fell through to the `id` prop.
+  useParams: () => ({}),
 }));
 
 // The whole storage layer is mocked: this suite is about the screen's state
@@ -20,10 +31,16 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/storage", () => ({
   getReference: vi.fn(),
   updateReference: vi.fn(),
+  // Backs lib/preferences.ts's readPreferences(), which TraceScreen now
+  // reads once on mount (T-11, T-13 carry). Resolving `undefined` for every
+  // key is what makes readPreferences() fall through to its defaults
+  // (keepAwake: true) without this suite having to know that.
+  getPreference: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
 }));
 
 const getReferenceMock = vi.mocked(getReference);
 const updateReferenceMock = vi.mocked(updateReference);
+const getPreferenceMock = vi.mocked(getPreference);
 
 // jsdom implements neither half of the object-URL API.
 const createObjectURL = vi.fn<(blob: Blob) => string>();
@@ -112,6 +129,11 @@ beforeEach(() => {
   getReferenceMock.mockReset();
   updateReferenceMock.mockReset();
   updateReferenceMock.mockResolvedValue(ready());
+  getPreferenceMock.mockReset();
+  // vi.restoreAllMocks() in afterEach clears any implementation set at
+  // vi.mock() factory time too, so the default has to be re-applied here,
+  // every test, not just once at module load.
+  getPreferenceMock.mockResolvedValue({ ok: true, value: undefined });
   createObjectURL.mockReset();
   createObjectURL.mockImplementation(() => "blob:free-trace/line-art");
   revokeObjectURL.mockReset();
@@ -161,7 +183,13 @@ describe("TraceScreen — loading a reference (criterion 1)", () => {
   it("shows the percentage in the monospace readout (criterion 2)", async () => {
     await renderScreen(ready({ lastOpacity: 42 }));
 
-    const readout = screen.getByText("42%");
+    // Scoped to the slider's own row: T-11 adds a second "42%" in the
+    // collapsed pill (same value, same .numeral class, always mounted per
+    // SPEC §9's no-layout-shift rule), so an unscoped getByText would now
+    // match two elements.
+    const opacityRow = screen.getByLabelText("Opacity").closest("div");
+    if (opacityRow === null) throw new Error("slider row not found");
+    const readout = within(opacityRow).getByText("42%");
     expect(readout.className).toMatch(/\bnumeral\b/);
   });
 
@@ -198,7 +226,11 @@ describe("TraceScreen — opacity (criteria 1, 2)", () => {
 
     // Immediate: the drawing must follow the thumb, not the write.
     expect(Number(overlayImage().style.opacity)).toBeCloseTo(0.55, 5);
-    expect(screen.getByText("55%")).toBeTruthy();
+    // Scoped to the slider row (see the criterion-2 readout test above for
+    // why an unscoped query is now ambiguous with the collapsed pill).
+    const sliderRow = slider.closest("div");
+    if (sliderRow === null) throw new Error("slider row not found");
+    expect(within(sliderRow).getByText("55%")).toBeTruthy();
     expect(updateReferenceMock).not.toHaveBeenCalled();
 
     act(() => {

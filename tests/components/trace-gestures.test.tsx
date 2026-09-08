@@ -7,7 +7,7 @@ import {
   toCssTransform,
   type OverlayTransform,
 } from "@/lib/overlayTransform";
-import { getReference, updateReference } from "@/lib/storage";
+import { getPreference, getReference, updateReference } from "@/lib/storage";
 import type { Reference } from "@/lib/storage";
 
 /**
@@ -27,14 +27,17 @@ const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
+  useParams: () => ({}),
 }));
 
 vi.mock("@/lib/storage", () => ({
   getReference: vi.fn(),
   updateReference: vi.fn(),
+  getPreference: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
 }));
 
 const getReferenceMock = vi.mocked(getReference);
+const getPreferenceMock = vi.mocked(getPreference);
 const updateReferenceMock = vi.mocked(updateReference);
 
 const createObjectURL = vi.fn<(blob: Blob) => string>();
@@ -154,6 +157,8 @@ beforeEach(() => {
   getReferenceMock.mockReset();
   updateReferenceMock.mockReset();
   updateReferenceMock.mockResolvedValue({ ok: true, value: makeReference() });
+  getPreferenceMock.mockReset();
+  getPreferenceMock.mockResolvedValue({ ok: true, value: undefined });
   createObjectURL.mockReset();
   createObjectURL.mockImplementation(() => "blob:free-trace/line-art");
   revokeObjectURL.mockReset();
